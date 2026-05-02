@@ -1,0 +1,493 @@
+{% extends "base.html" %}
+{% block title %}{{ query }} — SearchX{% endblock %}
+{% block body %}
+
+<div class="results-wrap">
+  <!-- Top bar -->
+  <header class="results-header">
+    <a href="/" class="logo-small">Search<span>X</span></a>
+
+    <form class="results-search-form" action="/search" method="get">
+      <div class="search-box">
+        <input type="text" name="q" id="search-input" class="search-input"
+               value="{{ query | e }}" autocomplete="off">
+        <input type="hidden" name="sort" value="{{ sort }}">
+        <button type="submit" class="search-btn">Search</button>
+      </div>
+      <div id="autocomplete" class="autocomplete-list"></div>
+    </form>
+
+    <nav class="top-nav">
+      <a href="/collections" class="nav-link">Collections</a>
+      <a href="/index-manager" class="nav-link">Index</a>
+      <a href="/settings" class="nav-link">Settings</a>
+    </nav>
+  </header>
+
+  <!-- Filter / type pills -->
+  <div class="filter-bar">
+    <a href="/search?q={{ query | urlencode }}&sort={{ sort }}" class="filter-pill {% if not request.args.get('type') %}active{% endif %}">All</a>
+    {% for t in ['web', 'image', 'video', 'audio', 'document'] %}
+      {% set tq = query ~ ' type:' ~ t %}
+      <a href="/search?q={{ tq | urlencode }}&sort={{ sort }}" class="filter-pill type-{{ t }}">{{ t | capitalize }}</a>
+    {% endfor %}
+
+    <span class="result-count">{{ results.total }} result{% if results.total != 1 %}s{% endif %}</span>
+
+    <!-- Active operator chips -->
+    {% if results.active_operators %}
+    <div class="operator-chips">
+      {% for op in results.active_operators %}
+      <span class="op-chip">
+        <span class="op-chip-key">{{ op.key }}:</span>{{ op.value }}
+        {% set stripped = query | replace(op.key ~ ':' ~ op.value, '') | trim %}
+        <a href="/search?q={{ stripped | urlencode }}&sort={{ sort }}" class="op-chip-x" title="Remove filter">×</a>
+      </span>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Sort selector -->
+    <div class="sort-wrap">
+      <select class="sort-select" onchange="applySort(this.value)">
+        {% for val, label in [
+          ('date_desc','Newest'),('date_asc','Oldest'),
+          ('size_desc','Largest'),('size_asc','Smallest'),
+          ('name_asc','A → Z'),('name_desc','Z → A')
+        ] %}
+          <option value="{{ val }}" {% if sort == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- View toggle -->
+    <button id="view-toggle" class="view-toggle-btn" title="Toggle grid view" onclick="toggleView()">⊞</button>
+
+    <!-- Export -->
+    <div class="export-wrap">
+      <a href="/api/export?q={{ query | urlencode }}&format=csv" class="src-btn" title="Export CSV" download>CSV</a>
+      <a href="/api/export?q={{ query | urlencode }}&format=json" class="src-btn" title="Export JSON" download>JSON</a>
+    </div>
+  </div>
+
+  <!-- Did you mean? -->
+  {% if results.suggestion %}
+  <div class="dym-bar">
+    Did you mean: <a href="/search?q={{ results.suggestion | urlencode }}&sort={{ sort }}" class="dym-link">{{ results.suggestion }}</a>?
+  </div>
+  {% endif %}
+
+  <!-- Direct site visit shortcut for domain-style queries -->
+  {% set _q = query | lower | trim %}
+  {% if _q | regex_search('^(https?://)?[\\w.-]+\\.[a-z]{2,}') and ' ' not in _q %}
+    {% set _site_url = (_q if _q.startswith('http') else 'https://' ~ _q) %}
+    <div class="dym-bar">
+      Go directly to: <a href="{{ _site_url }}" target="_blank" rel="noopener" class="dym-link">{{ _site_url }}</a>
+    </div>
+  {% endif %}
+
+  <div id="answer-box" class="answer-box" style="display:none">
+    <div class="answer-box-label">
+      <span class="answer-ai-badge">AI</span> Answer
+      <span id="answer-provider-badge" class="answer-provider-badge" style="display:none"></span>
+      <button id="answer-copy-btn" class="answer-copy-btn" title="Copy answer" onclick="copyAnswer()">Copy</button>
+      <button id="answer-speak-btn" class="answer-speak-btn" title="Read aloud" onclick="toggleSpeak()">&#9654; Speak</button>
+    </div>
+    <div id="answer-text" class="answer-text"></div>
+    <div class="answer-sources">
+      Based on top results · <a href="#results-container" class="answer-src-link">See sources ↓</a>
+    </div>
+  </div>
+
+  <div class="results-body">
+    <!-- Results list / grid -->
+    <main class="results-list" id="results-container">
+      {% if results.results %}
+        {% for r in results.results %}
+        <article class="result-card media-{{ r.media_type }}" data-id="{{ r.id }}">
+          <div class="result-meta">
+            <span class="badge badge-{{ r.media_type }}">{{ r.media_type }}</span>
+            <span class="badge badge-source">{{ r.source }}</span>
+            {% if r.filetype %}
+              <span class="badge badge-ext">.{{ r.filetype }}</span>
+            {% endif %}
+            {% if r.media_type in ['video', 'audio', 'image'] %}
+              <a href="/view/{{ r.id }}" class="preview-btn preview-{{ r.media_type }}">
+                {% if r.media_type == 'video' %}▶ Play{% elif r.media_type == 'audio' %}♫ Play{% else %}🔍 View{% endif %}
+              </a>
+            {% elif r.media_type == 'document' and r.filetype == 'pdf' %}
+              <a href="/view/{{ r.id }}" class="preview-btn preview-document">📄 Preview</a>
+            {% endif %}
+
+            <!-- Save to collection button -->
+            {% if collections %}
+            <div class="save-col-wrap">
+              <button class="src-btn save-col-btn" title="Save to collection"
+                      onclick="toggleColMenu({{ r.id }}, event)">🔖</button>
+              <div class="col-menu" id="col-menu-{{ r.id }}" style="display:none">
+                {% for col in collections %}
+                  <button class="col-menu-item" onclick="saveToCol({{ col.id }}, {{ r.id }})">
+                    {{ col.name }}
+                  </button>
+                {% endfor %}
+                <button class="col-menu-item col-menu-new" onclick="quickCreateCol({{ r.id }})">
+                  + New collection
+                </button>
+              </div>
+            </div>
+            {% endif %}
+          </div>
+
+          <h2 class="result-title">
+            {% if r.source == 'local' and r.file_path %}
+              <a href="/open?path={{ r.file_path | urlencode }}" title="{{ r.file_path }}">
+                {{ r.title or r.file_path }}
+              </a>
+            {% else %}
+              <a href="{{ r.url }}" target="_blank" rel="noopener">{{ r.title or r.url }}</a>
+            {% endif %}
+          </h2>
+
+          <div class="result-url-row">
+            <a href="/search?q={{ r.base_url | urlencode }}&sort={{ sort }}" class="result-base-url" title="Search this site">{{ r.base_url }}</a>
+            {% if r.url_crumb and ' › ' in r.url_crumb %}
+              <span class="result-url-crumb">{{ r.url_crumb.split(' › ', 1)[1] }}</span>
+            {% endif %}
+            {% if r.media_type == 'web' or r.source == 'webcrawler' %}
+              <a href="/cached/{{ r.id }}" class="cached-link" title="View cached copy">Cached</a>
+            {% endif %}
+          </div>
+
+          {% if r.snippet %}
+            <p class="result-snippet">{{ r.snippet | safe }}</p>
+          {% endif %}
+
+          <!-- Thumbnail: prefer generated thumb, fall back to stream for local images -->
+          {% if r.media_type == 'image' %}
+            <div class="result-thumb">
+              <a href="/view/{{ r.id }}">
+                {% if r.thumb_path %}
+                  <img src="/static/{{ r.thumb_path }}" alt="{{ r.title }}" loading="lazy">
+                {% elif r.source == 'local' and r.file_path %}
+                  <img src="/stream?path={{ r.file_path | urlencode }}" alt="{{ r.title }}" loading="lazy">
+                {% endif %}
+              </a>
+              {% if r.metadata.width %}
+                <span class="img-dim">{{ r.metadata.width }}×{{ r.metadata.height }}</span>
+              {% endif %}
+            </div>
+          {% endif %}
+
+          {% if r.media_type in ['audio', 'video'] and r.metadata.duration_sec %}
+            <span class="duration">⏱ {{ r.metadata.duration_sec // 60 }}:{{ '%02d' % (r.metadata.duration_sec % 60) }}</span>
+          {% endif %}
+
+          {% if r.file_size %}
+            <span class="filesize">{{ (r.file_size / 1024 / 1024) | round(1) }} MB</span>
+          {% endif %}
+        </article>
+        {% endfor %}
+
+      {% else %}
+        <div class="no-results">
+          <p>No results for <strong>{{ query | e }}</strong>.</p>
+          {% if results.suggestion %}
+          <p>Did you mean: <a href="/search?q={{ results.suggestion | urlencode }}&sort={{ sort }}" class="dym-link">{{ results.suggestion }}</a>?</p>
+          {% endif %}
+          <p class="muted" style="margin-top:1rem;font-size:.85rem">
+            Try different keywords or
+            <a href="/index-manager">add more content to the index</a>.
+          </p>
+          <div class="operator-hints">
+            <p class="operator-hints-title">Search operators you can use:</p>
+            <div class="op-hint-grid">
+              <code>site:example.com</code><span>Restrict to a domain</span>
+              <code>filetype:pdf</code><span>Filter by file type</span>
+              <code>intitle:word</code><span>Title must contain word</span>
+              <code>inurl:slug</code><span>URL must contain slug</span>
+              <code>type:video</code><span>Filter by media type</span>
+              <code>before:2024</code><span>Indexed before a date</span>
+              <code>after:2023-06</code><span>Indexed after a date</span>
+              <code>-word</code><span>Exclude a word</span>
+              <code>"exact phrase"</code><span>Exact phrase match</span>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+    </main>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <h3>Refine</h3>
+      <div class="sidebar-section">
+        <p class="sidebar-label">File type</p>
+        {% for ft in ['mp4', 'mp3', 'jpg', 'png', 'pdf', 'docx', 'txt'] %}
+          <a href="/search?q={{ (query ~ ' filetype:' ~ ft) | urlencode }}&sort={{ sort }}" class="sidebar-link">{{ ft }}</a>
+        {% endfor %}
+      </div>
+      <div class="sidebar-section">
+        <p class="sidebar-label">Source</p>
+        <a href="/search?q={{ (query ~ ' source:local') | urlencode }}&sort={{ sort }}" class="sidebar-link">Local files</a>
+        <a href="/search?q={{ (query ~ ' source:web') | urlencode }}&sort={{ sort }}" class="sidebar-link">Web pages</a>
+      </div>
+      <div class="sidebar-section">
+        <p class="sidebar-label">Stats</p>
+        <p class="sidebar-stat">{{ stats.total }} total</p>
+        {% for t, c in stats.by_type.items() %}
+          <p class="sidebar-stat">{{ t }}: {{ c }}</p>
+        {% endfor %}
+      </div>
+      {% if collections %}
+      <div class="sidebar-section">
+        <p class="sidebar-label">Collections</p>
+        {% for col in collections[:5] %}
+          <a href="/collection/{{ col.id }}" class="sidebar-link">{{ col.name }} ({{ col.item_count }})</a>
+        {% endfor %}
+        <a href="/collections" class="sidebar-link" style="color:var(--accent)">All collections →</a>
+      </div>
+      {% endif %}
+    </aside>
+  </div>
+
+  <!-- Pagination -->
+  {% if results.total_pages > 1 %}
+  <nav class="pagination">
+    {% if results.page > 1 %}
+      <a href="/search?q={{ query | urlencode }}&page={{ results.page - 1 }}&sort={{ sort }}" class="page-btn">← Prev</a>
+    {% endif %}
+
+    {% for p in range([1, results.page - 3] | max, [results.total_pages + 1, results.page + 4] | min) %}
+      <a href="/search?q={{ query | urlencode }}&page={{ p }}&sort={{ sort }}"
+         class="page-btn {% if p == results.page %}active{% endif %}">{{ p }}</a>
+    {% endfor %}
+
+    {% if results.page < results.total_pages %}
+      <a href="/search?q={{ query | urlencode }}&page={{ results.page + 1 }}&sort={{ sort }}" class="page-btn">Next →</a>
+    {% endif %}
+  </nav>
+  {% endif %}
+
+  {% if related %}
+  <div class="related-searches">
+    <span class="related-label">Related searches:</span>
+    {% for q in related %}
+      <a href="/search?q={{ q | urlencode }}&sort={{ sort }}" class="related-pill">{{ q }}</a>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+
+<script>
+function applySort(val) {
+  const u = new URL(location.href);
+  u.searchParams.set('sort', val);
+  u.searchParams.set('page', '1');
+  location.href = u.toString();
+}
+
+// Grid view toggle (persisted in localStorage)
+const GRID_KEY = 'searchx_grid_view';
+function toggleView() {
+  const on = localStorage.getItem(GRID_KEY) === '1';
+  localStorage.setItem(GRID_KEY, on ? '0' : '1');
+  applyGridView(!on);
+}
+function applyGridView(on) {
+  const container = document.getElementById('results-container');
+  const btn = document.getElementById('view-toggle');
+  if (on) {
+    container.classList.add('grid-view');
+    btn.textContent = '☰';
+    btn.title = 'List view';
+  } else {
+    container.classList.remove('grid-view');
+    btn.textContent = '⊞';
+    btn.title = 'Grid view';
+  }
+}
+// Apply on load
+applyGridView(localStorage.getItem(GRID_KEY) === '1');
+
+// Collection menu
+function toggleColMenu(id, e) {
+  e.stopPropagation();
+  document.querySelectorAll('.col-menu').forEach(m => {
+    if (m.id !== `col-menu-${id}`) m.style.display = 'none';
+  });
+  const menu = document.getElementById(`col-menu-${id}`);
+  menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+document.addEventListener('click', () => {
+  document.querySelectorAll('.col-menu').forEach(m => m.style.display = 'none');
+});
+
+function saveToCol(colId, docId) {
+  fetch(`/api/collection/${colId}/add`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({doc_id: docId})
+  }).then(r => r.json()).then(() => {
+    document.querySelectorAll('.col-menu').forEach(m => m.style.display = 'none');
+    showToast('Saved to collection', 'success');
+  });
+}
+
+function quickCreateCol(docId) {
+  const name = prompt('New collection name:');
+  if (!name) return;
+  fetch('/api/collection/create', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name})
+  }).then(r => r.json()).then(d => {
+    if (d.id) saveToCol(d.id, docId);
+  });
+}
+
+function copyAnswer() {
+  // Copy plain text (strip any HTML tags from formatted answer)
+  const text = document.getElementById('answer-text').innerText;
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('answer-copy-btn');
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+let _ttsAudio = null;
+
+function toggleSpeak() {
+  const btn = document.getElementById('answer-speak-btn');
+
+  // Stop if already playing
+  if (_ttsAudio && !_ttsAudio.paused) {
+    _ttsAudio.pause();
+    _ttsAudio = null;
+    btn.innerHTML = '&#9654; Speak';
+    btn.classList.remove('speaking');
+    return;
+  }
+
+  const textEl = document.getElementById('answer-text');
+  const cloned = textEl.cloneNode(true);
+  cloned.querySelectorAll('.answer-code-block').forEach(el => el.remove());
+  const text = cloned.innerText.trim();
+  if (!text) return;
+
+  btn.innerHTML = '&#9203; Loading…';
+  btn.classList.add('speaking');
+
+  fetch('/api/tts?text=' + encodeURIComponent(text))
+    .then(r => {
+      if (!r.ok) throw new Error('no_key');
+      return r.blob();
+    })
+    .then(blob => {
+      const url  = URL.createObjectURL(blob);
+      _ttsAudio  = new Audio(url);
+      _ttsAudio.onended = () => {
+        btn.innerHTML = '&#9654; Speak';
+        btn.classList.remove('speaking');
+        URL.revokeObjectURL(url);
+        _ttsAudio = null;
+      };
+      _ttsAudio.play();
+      btn.innerHTML = '&#9646;&#9646; Stop';
+    })
+    .catch(() => {
+      btn.innerHTML = '&#9654; Speak';
+      btn.classList.remove('speaking');
+    });
+}
+
+function copyCode(btn) {
+  const code = btn.closest('.answer-code-block').querySelector('code').innerText;
+  navigator.clipboard.writeText(code).then(() => {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+function formatAnswerText(raw) {
+  function esc(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  // Split on fenced code blocks — also matches unclosed blocks (cut-off answers)
+  const parts = [];
+  const re = /```(\w*)\n?([\s\S]*?)(?:```|$)/g;
+  let last = 0, m;
+  while ((m = re.exec(raw)) !== null) {
+    if (m.index > last) parts.push({type:'text', content: raw.slice(last, m.index)});
+    parts.push({type:'code', lang: m[1], content: m[2].trim()});
+    last = m.index + m[0].length;
+  }
+  if (last < raw.length) parts.push({type:'text', content: raw.slice(last)});
+
+  return parts.map(p => {
+    if (p.type === 'code') {
+      const lang = p.lang ? `<span class="code-lang">${esc(p.lang)}</span>` : '';
+      return `<div class="answer-code-block">${lang}<button class="code-copy-btn" onclick="copyCode(this)">Copy</button><pre><code>${esc(p.content)}</code></pre></div>`;
+    }
+    // Escape text, then apply inline code
+    let t = esc(p.content);
+    t = t.replace(/`([^`\n]+)`/g, (_, c) => `<code class="answer-inline-code">${c}</code>`);
+    return `<span>${t}</span>`;
+  }).join('');
+}
+
+// Streaming AI answer box — words stream in, code blocks styled on completion
+(function loadAnswer() {
+  const q = {{ query | tojson }};
+  if (!q) return;
+
+  const box      = document.getElementById('answer-box');
+  const textEl   = document.getElementById('answer-text');
+  const badgeEl  = document.getElementById('answer-provider-badge');
+  let   revealed = false;
+  let   fullText = '';
+
+  fetch('/api/answer?q=' + encodeURIComponent(q) + '&stream=1')
+    .then(resp => {
+      const reader  = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let   buf     = '';
+
+      function pump() {
+        return reader.read().then(({done, value}) => {
+          if (done) return;
+          buf += decoder.decode(value, {stream: true});
+          const lines = buf.split('\n');
+          buf = lines.pop();
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            let obj;
+            try { obj = JSON.parse(line.slice(6)); } catch { continue; }
+
+            if (obj.provider) {
+              badgeEl.textContent = obj.provider;
+              badgeEl.style.display = '';
+            }
+            if (obj.text) {
+              if (!revealed) { box.style.display = ''; revealed = true; }
+              fullText += obj.text;
+              // Stream as plain text so typing effect works
+              textEl.textContent = fullText;
+            }
+            if (obj.done && fullText) {
+              // Replace plain text with formatted HTML once complete
+              textEl.innerHTML = formatAnswerText(fullText);
+            }
+          }
+          return pump();
+        });
+      }
+      return pump();
+    })
+    .catch(() => {});
+})();
+</script>
+{% endblock %}

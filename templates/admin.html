@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% block title %}Admin — SearchX{% endblock %}
+{% block body %}
+<div class="manager-wrap">
+  <header class="results-header">
+    <a href="/" class="logo-small">Search<span>X</span></a>
+    <h1 class="manager-title">Admin</h1>
+    <nav class="top-nav">
+      <a href="/index-manager" class="nav-link">Index</a>
+      <a href="/crawler" class="nav-link">Web Crawler</a>
+      <a href="/duplicates" class="nav-link">Duplicates</a>
+      <a href="/settings" class="nav-link">Settings</a>
+    </nav>
+  </header>
+
+  <div class="manager-body">
+
+    <!-- System info strip -->
+    <div class="admin-sysbar">
+      <span>🐍 Python {{ sys_info.python }}</span>
+      <span>💻 {{ sys_info.platform }} · {{ sys_info.cpus }} CPUs</span>
+      <span>🔧 PID {{ sys_info.pid }}</span>
+      {% if watcher.watching %}
+        <span class="badge badge-audio">Watcher ON</span>
+      {% else %}
+        <span class="badge badge-other">Watcher OFF</span>
+      {% endif %}
+      {% if index_status.running %}
+        <span class="badge badge-video">Indexing…</span>
+      {% endif %}
+    </div>
+
+    <!-- Stat cards row -->
+    <div class="admin-cards">
+
+      <div class="admin-card">
+        <div class="admin-card-label">Documents</div>
+        <div class="admin-card-value">{{ stats.total | default(0) }}</div>
+        <div class="admin-card-sub">
+          {% for t, c in stats.by_type.items() %}
+            <span class="stat-chip stat-{{ t }}">{{ t }}: {{ c }}</span>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="admin-card">
+        <div class="admin-card-label">Database</div>
+        <div class="admin-card-value">{{ (db_size / 1024 / 1024) | round(1) }} MB</div>
+        <div class="admin-card-sub">PostgreSQL</div>
+      </div>
+
+      <div class="admin-card">
+        <div class="admin-card-label">Cache (this worker)</div>
+        <div class="admin-card-value">{{ (cache.hit_rate * 100) | round(1) }}%</div>
+        <div class="admin-card-sub">
+          {{ cache.hits }} hits / {{ cache.misses }} misses ·
+          {{ cache.size }}/{{ cache.maxsize }} slots
+        </div>
+      </div>
+
+      <div class="admin-card">
+        <div class="admin-card-label">History</div>
+        <div class="admin-card-value">{{ history_count }}</div>
+        <div class="admin-card-sub">searches logged</div>
+      </div>
+
+      <div class="admin-card">
+        <div class="admin-card-label">Collections</div>
+        <div class="admin-card-value">{{ collections_count }}</div>
+        <div class="admin-card-sub">saved bookmarks</div>
+      </div>
+
+    </div>
+
+    <!-- Maintenance actions -->
+    <h2 class="section-title" style="margin-top:1.5rem">Maintenance</h2>
+    <div class="admin-actions">
+
+      <div class="admin-action-card">
+        <div class="admin-action-icon">🧠</div>
+        <div>
+          <strong>Generate Embeddings</strong>
+          <p class="muted" style="font-size:.8rem">Build semantic search vectors for documents that don't have them yet. Run in batches — click multiple times for large indexes.</p>
+        </div>
+        <button class="index-btn" style="white-space:nowrap;background:#7c3aed" onclick="embedMissing()">Generate (100)</button>
+      </div>
+
+      <div class="admin-action-card">
+        <div class="admin-action-icon">🔍</div>
+        <div>
+          <strong>Rebuild FTS Index</strong>
+          <p class="muted" style="font-size:.8rem">Re-sync the full-text search index with the documents table. Run if searches feel stale after bulk imports.</p>
+        </div>
+        <button class="index-btn" style="white-space:nowrap" onclick="adminAction('/admin/rebuild-fts','Rebuild FTS')">Rebuild</button>
+      </div>
+
+      <div class="admin-action-card">
+        <div class="admin-action-icon">🗑</div>
+        <div>
+          <strong>Clear Search Cache</strong>
+          <p class="muted" style="font-size:.8rem">Evict all cached search results from this worker. Cache rebuilds automatically as new queries come in.</p>
+        </div>
+        <button class="index-btn" style="white-space:nowrap;background:var(--orange)" onclick="adminAction('/admin/clear-cache','Clear cache')">Clear</button>
+      </div>
+
+      <div class="admin-action-card">
+        <div class="admin-action-icon">📐</div>
+        <div>
+          <strong>Refresh Statistics</strong>
+          <p class="muted" style="font-size:.8rem">Run ANALYZE to update the query planner's table statistics. Useful after large bulk imports.</p>
+        </div>
+        <button class="index-btn" style="white-space:nowrap;background:var(--teal)" onclick="adminAction('/admin/checkpoint','Analyze')">Analyze</button>
+      </div>
+
+      <div class="admin-action-card">
+        <div class="admin-action-icon">📊</div>
+        <div>
+          <strong>Optimize DB Stats</strong>
+          <p class="muted" style="font-size:.8rem">Run ANALYZE to update the query planner's statistics. Improves query speed on large databases.</p>
+        </div>
+        <button class="index-btn" style="white-space:nowrap;background:var(--accent2)" onclick="adminAction('/admin/optimize','Optimize')">Optimize</button>
+      </div>
+
+      <div class="admin-action-card">
+        <div class="admin-action-icon">📦</div>
+        <div>
+          <strong>Download Backup</strong>
+          <p class="muted" style="font-size:.8rem">Hot-backup the SQLite database using the built-in backup API. Safe to run while the server is live.</p>
+        </div>
+        <a href="/admin/backup" class="index-btn" style="white-space:nowrap;background:var(--green);text-decoration:none">Download</a>
+      </div>
+
+    </div>
+
+    <!-- Index status -->
+    <h2 class="section-title" style="margin-top:1.5rem">Index Status</h2>
+    <div class="status-card {% if index_status.running %}running{% elif index_status.done %}done{% endif %}">
+      {% if index_status.running %}
+        <div class="status-icon spin">⟳</div>
+        <div>
+          <strong>Indexing…</strong>
+          <p>{{ index_status.count }} files · {{ index_status.current }}</p>
+        </div>
+      {% elif index_status.done %}
+        <div class="status-icon">✓</div>
+        <div><strong>Done.</strong> {{ index_status.count }} items.</div>
+      {% elif index_status.error %}
+        <div class="status-icon err">✗</div>
+        <div><strong>Error:</strong> {{ index_status.error }}</div>
+      {% else %}
+        <div class="status-icon idle">●</div>
+        <div><strong>Idle</strong></div>
+      {% endif %}
+    </div>
+
+    <!-- Quick links -->
+    <div style="margin-top:1.5rem;display:flex;gap:.75rem;flex-wrap:wrap">
+      <a href="/api/health" target="_blank" class="src-btn">🔎 /api/health</a>
+      <a href="/api/cache-stats" target="_blank" class="src-btn">📈 /api/cache-stats</a>
+      <a href="/api/index-status" target="_blank" class="src-btn">📋 /api/index-status</a>
+      <a href="/history" class="src-btn">🕑 Search History</a>
+      <a href="/collections" class="src-btn">📁 Collections</a>
+      <a href="/duplicates" class="src-btn">🗂 Duplicates</a>
+    </div>
+
+  </div><!-- manager-body -->
+</div>
+
+<div id="admin-toast" class="toast toast-success" style="display:none"></div>
+
+<script>
+function embedMissing() {
+  const btn = event.target;
+  btn.textContent = 'Working…';
+  btn.disabled = true;
+  fetch('/api/embed-missing', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{"batch":100}'})
+    .then(r => r.json())
+    .then(d => {
+      const t = document.getElementById('admin-toast');
+      t.textContent = `Generated embeddings for ${d.updated} documents`;
+      t.className = 'toast toast-success';
+      t.style.display = 'block';
+      setTimeout(() => t.style.display = 'none', 3000);
+      btn.textContent = 'Generate (100)';
+      btn.disabled = false;
+    })
+    .catch(() => { btn.textContent = 'Generate (100)'; btn.disabled = false; });
+}
+
+function adminAction(url, label) {
+  fetch(url, {method:'POST'})
+    .then(r => r.json())
+    .then(d => {
+      const t = document.getElementById('admin-toast');
+      t.textContent = d.message || (label + ' complete');
+      t.className = 'toast toast-' + (d.ok ? 'success' : 'error');
+      t.style.display = 'block';
+      setTimeout(() => { t.style.display = 'none'; location.reload(); }, 2000);
+    })
+    .catch(() => {
+      const t = document.getElementById('admin-toast');
+      t.textContent = label + ' failed';
+      t.className = 'toast toast-error';
+      t.style.display = 'block';
+      setTimeout(() => t.style.display = 'none', 3000);
+    });
+}
+</script>
+{% endblock %}

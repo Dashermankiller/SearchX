@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}{{ code }} — SearchX{% endblock %}
+{% block body %}
+<div class="home-wrap" style="text-align:center">
+  <header class="home-header">
+    <nav class="top-nav">
+      <a href="/" class="nav-link">Home</a>
+      <a href="/index-manager" class="nav-link">Index</a>
+    </nav>
+  </header>
+  <main class="home-main">
+    <div class="error-code">{{ code }}</div>
+    <h1 class="error-title">{{ title }}</h1>
+    <p class="error-msg">{{ message }}</p>
+    <a href="/" class="index-btn" style="display:inline-block;margin-top:1.5rem;text-decoration:none">← Go Home</a>
+    {% if code == 500 %}
+      <p style="margin-top:1rem;font-size:.8rem;color:var(--muted)">
+        Check <a href="/admin">the admin panel</a> or server logs for details.
+      </p>
+    {% endif %}
+  </main>
+</div>
+{% endblock %}

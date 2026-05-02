@@ -1,0 +1,94 @@
+{% extends "settings_layout.html" %}
+{% block settings_title %}Users{% endblock %}
+{% block settings_body %}
+
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;flex-wrap:wrap;gap:.5rem">
+  <h2 class="sl-page-title" style="margin:0">Users</h2>
+  <button class="index-btn" style="background:var(--teal)"
+          onclick="document.getElementById('addUserModal').style.display='flex'">
+    + New user
+  </button>
+</div>
+
+{% if message %}
+<div class="alert-success" style="margin-bottom:1rem">✓ {{ message }}</div>
+{% endif %}
+{% if error %}
+<div class="auth-error" style="margin-bottom:1rem">{{ error }}</div>
+{% endif %}
+
+<div class="sl-card" style="padding:0;overflow:hidden">
+  <table class="sl-table">
+    <thead>
+      <tr>
+        <th>Username</th>
+        <th>Role</th>
+        <th>Joined</th>
+        <th style="text-align:right">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+      <tr>
+        <td><strong>{{ u.username }}</strong></td>
+        <td>
+          <span class="sl-role-badge sl-role-{{ u.role }}">{{ u.role }}</span>
+        </td>
+        <td style="color:var(--muted);font-size:.8rem">
+          {{ (u.created_at or '')[:10] }}
+        </td>
+        <td style="text-align:right">
+          {% if u.id != current_user.id %}
+          <form method="post" action="/admin/users/{{ u.id }}/delete"
+                style="display:inline"
+                onsubmit="return confirm('Delete user {{ u.username }}?')">
+            <button class="sl-action-btn sl-action-danger">Delete</button>
+          </form>
+          {% else %}
+          <span style="color:var(--muted);font-size:.8rem">you</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- ── Add user modal ───────────────────────────────────────────────────── -->
+<div id="addUserModal" class="sl-modal-backdrop" style="display:none">
+  <div class="sl-modal">
+    <h3 style="margin:0 0 1rem">Add new user</h3>
+    <form method="post" action="/admin/users/create" class="sl-form">
+      <div class="auth-field">
+        <label>Username</label>
+        <input name="username" type="text" required minlength="3" maxlength="32" autofocus>
+      </div>
+      <div class="auth-field">
+        <label>Password</label>
+        <input name="password" type="password" required minlength="6">
+      </div>
+      <div class="auth-field">
+        <label>Role</label>
+        <select name="role" class="crawl-select">
+          <option value="user">user</option>
+          <option value="admin">admin</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:.75rem;margin-top:1rem">
+        <button type="submit" class="index-btn" style="background:var(--teal)">Create</button>
+        <button type="button" class="index-btn" style="background:var(--bg3);color:var(--text)"
+                onclick="document.getElementById('addUserModal').style.display='none'">
+          Cancel
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+document.getElementById('addUserModal').addEventListener('click', function(e) {
+  if (e.target === this) this.style.display = 'none';
+});
+</script>
+
+{% endblock %}

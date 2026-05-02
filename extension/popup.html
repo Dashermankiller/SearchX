@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SearchX</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 320px;
+      background: #0f0f0f;
+      color: #e8e8e8;
+      font-family: system-ui, sans-serif;
+      font-size: 14px;
+      padding: 0;
+    }
+    .header {
+      background: #1a1a1a;
+      border-bottom: 1px solid #333;
+      padding: .75rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+    }
+    .logo { font-size: 1.1rem; font-weight: 800; letter-spacing: -.5px; }
+    .logo span { color: #4f8ef7; }
+    .content { padding: 1rem; }
+    .page-info {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: .75rem;
+      margin-bottom: .75rem;
+      word-break: break-all;
+    }
+    .page-title {
+      font-weight: 600;
+      font-size: .85rem;
+      margin-bottom: .25rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: #e8e8e8;
+    }
+    .page-url {
+      font-size: .75rem;
+      color: #888;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .add-btn {
+      width: 100%;
+      background: #4f8ef7;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: .6rem 1rem;
+      font-size: .9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .2s;
+      margin-bottom: .75rem;
+    }
+    .add-btn:hover { background: #3a7de0; }
+    .add-btn:disabled { background: #333; color: #666; cursor: not-allowed; }
+    .status {
+      text-align: center;
+      font-size: .8rem;
+      padding: .4rem;
+      border-radius: 5px;
+      margin-bottom: .75rem;
+      display: none;
+    }
+    .status.success { background: rgba(34,197,94,.15); color: #22c55e; display: block; }
+    .status.error   { background: rgba(239,68,68,.15);  color: #ef4444; display: block; }
+    .settings { border-top: 1px solid #333; padding-top: .75rem; }
+    .settings-label {
+      font-size: .75rem;
+      color: #888;
+      margin-bottom: .3rem;
+      display: block;
+    }
+    .settings input {
+      width: 100%;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 5px;
+      color: #e8e8e8;
+      font-size: .8rem;
+      padding: .4rem .6rem;
+      margin-bottom: .6rem;
+      outline: none;
+      transition: border-color .2s;
+    }
+    .settings input:focus { border-color: #4f8ef7; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">Search<span>X</span></div>
+    <span style="color:#888;font-size:.8rem;margin-left:auto">Save to index</span>
+  </div>
+  <div class="content">
+    <div class="page-info">
+      <div class="page-title" id="page-title">Loading…</div>
+      <div class="page-url"  id="page-url"></div>
+    </div>
+
+    <button class="add-btn" id="add-btn">Add to SearchX</button>
+    <div class="status" id="status"></div>
+
+    <div class="settings">
+      <label class="settings-label" for="server-url">Server URL</label>
+      <input type="url" id="server-url" placeholder="http://localhost:5000">
+      <label class="settings-label" for="api-key">API Key (optional)</label>
+      <input type="password" id="api-key" placeholder="leave blank if not configured">
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

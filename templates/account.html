@@ -1,0 +1,46 @@
+{% extends "settings_layout.html" %}
+{% block settings_title %}My Account{% endblock %}
+{% block settings_body %}
+
+<h2 class="sl-page-title">Profile</h2>
+
+{% if saved %}
+<div class="alert-success">✓ {{ saved }}</div>
+{% endif %}
+{% if error %}
+<div class="auth-error" style="margin-bottom:1rem">{{ error }}</div>
+{% endif %}
+
+<!-- ── Account info ──────────────────────────────────────────────────── -->
+<div class="sl-card">
+  <h3 class="sl-card-title">Account info</h3>
+  <dl class="sl-info-dl">
+    <dt>Username</dt>
+    <dd><strong>{{ current_user.username }}</strong></dd>
+    <dt>Role</dt>
+    <dd><span class="sl-role-badge sl-role-{{ current_user.role }}">{{ current_user.role }}</span></dd>
+  </dl>
+</div>
+
+<!-- ── Change password ───────────────────────────────────────────────── -->
+<div class="sl-card" style="margin-top:1.5rem">
+  <h3 class="sl-card-title">Change password</h3>
+  <form class="sl-form" method="post" action="/account/change-password">
+    <div class="auth-field">
+      <label>Current password</label>
+      <input type="password" name="current_password" required autocomplete="current-password">
+    </div>
+    <div class="auth-field">
+      <label>New password</label>
+      <input type="password" name="new_password" required minlength="6" autocomplete="new-password">
+      <span class="auth-hint">Minimum 6 characters.</span>
+    </div>
+    <div class="auth-field">
+      <label>Confirm new password</label>
+      <input type="password" name="new_password2" required minlength="6" autocomplete="new-password">
+    </div>
+    <button type="submit" class="index-btn">Update password</button>
+  </form>
+</div>
+
+{% endblock %}

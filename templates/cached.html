@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}Cached: {{ doc.title }} — SearchX{% endblock %}
+{% block body %}
+
+<!-- ── Cache banner ──────────────────────────────────────────────────────── -->
+<div class="cache-banner">
+  <div class="cache-banner-inner">
+    <div class="cache-banner-left">
+      <span class="cache-logo">Search<span>X</span></span>
+      <div class="cache-meta">
+        <span class="cache-label">Cached copy</span>
+        <span class="cache-date">
+          Saved {{ doc.indexed_at | replace('T', ' ') | truncate(19, True, '') }} UTC
+        </span>
+      </div>
+    </div>
+    <div class="cache-banner-right">
+      <a href="{{ doc.url }}" target="_blank" rel="noopener" class="cache-live-btn">
+        Visit live site ↗
+      </a>
+      <a href="javascript:history.back()" class="cache-back-btn">← Back</a>
+    </div>
+  </div>
+  <div class="cache-url-bar">
+    <span class="cache-url-label">Original URL:</span>
+    <a href="{{ doc.url }}" target="_blank" rel="noopener" class="cache-url-link">
+      {{ doc.url }}
+    </a>
+  </div>
+</div>
+
+<!-- ── Cached content ────────────────────────────────────────────────────── -->
+<div class="cache-body">
+  <article class="cache-article">
+
+    <h1 class="cache-title">{{ doc.title }}</h1>
+
+    {% if doc.metadata.description %}
+    <p class="cache-description">{{ doc.metadata.description }}</p>
+    {% endif %}
+
+    <hr class="cache-divider">
+
+    <!-- Videos -->
+    {% if doc.metadata.videos %}
+    <div class="cache-videos">
+      {% for v in doc.metadata.videos %}
+      <div class="cache-video-wrap">
+        <video controls preload="metadata"
+               {% if v.poster %}poster="{{ v.poster }}"{% endif %}
+               class="cache-video">
+          <source src="{{ v.src }}" {% if v.type %}type="{{ v.type }}"{% endif %}>
+          Your browser does not support the video tag.
+        </video>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Image grid -->
+    {% if doc.metadata.images %}
+    <div class="cache-image-grid">
+      {% for img in doc.metadata.images %}
+        <a href="{{ img.src }}" target="_blank" rel="noopener" class="cache-img-link">
+          <img src="{{ img.src }}"
+               alt="{{ img.alt or '' }}"
+               loading="lazy"
+               class="cache-img"
+               onerror="this.parentElement.style.display='none'">
+        </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="cache-content">
+      {% for para in doc.content.split('\n\n') %}
+        {% set p = para.strip() %}
+        {% if p %}
+          <p>{{ p }}</p>
+        {% endif %}
+      {% endfor %}
+      {% if not doc.content %}
+        <p class="muted">No content was captured for this page.</p>
+      {% endif %}
+    </div>
+
+  </article>
+
+  <aside class="cache-sidebar">
+    <div class="cache-info-card">
+      <h3>Page info</h3>
+      <dl class="cache-dl">
+        <dt>Domain</dt>
+        <dd>{{ doc.metadata.domain or doc.url.split('/')[2] }}</dd>
+
+        <dt>Cached</dt>
+        <dd>{{ doc.indexed_at | replace('T', ' ') | truncate(19, True, '') }} UTC</dd>
+
+        <dt>Source</dt>
+        <dd>{{ doc.source }}</dd>
+
+        {% if doc.metadata.depth is not none %}
+        <dt>Crawl depth</dt>
+        <dd>{{ doc.metadata.depth }}</dd>
+        {% endif %}
+
+        {% if doc.pagerank %}
+        <dt>PageRank score</dt>
+        <dd>{{ "%.4f"|format(doc.pagerank) }}</dd>
+        {% endif %}
+
+        <dt>Content length</dt>
+        <dd>{{ "{:,}".format(doc.content | length) }} chars</dd>
+      </dl>
+    </div>
+
+    <div class="cache-info-card" style="margin-top:1rem">
+      <h3>Actions</h3>
+      <div style="display:flex;flex-direction:column;gap:.5rem">
+        <a href="{{ doc.url }}" target="_blank" rel="noopener" class="index-btn"
+           style="text-align:center">
+          Open live page ↗
+        </a>
+        <a href="/cached/{{ doc.id }}/download" class="index-btn"
+           style="background:var(--teal);text-align:center">
+          ⬇ Download offline
+        </a>
+        <a href="/cached/{{ doc.id }}/archive" class="index-btn"
+           style="background:#7c3aed;text-align:center">
+          ⬇ Full archive (ZIP)
+        </a>
+        <a href="/search?q={{ doc.title | urlencode }}" class="index-btn"
+           style="background:var(--bg3);color:var(--text);text-align:center">
+          Search similar
+        </a>
+      </div>
+    </div>
+  </aside>
+</div>
+
+{% endblock %}

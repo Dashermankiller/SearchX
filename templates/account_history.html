@@ -1,0 +1,56 @@
+{% extends "settings_layout.html" %}
+{% block settings_title %}Search History{% endblock %}
+{% block settings_body %}
+
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;flex-wrap:wrap;gap:.5rem">
+  <h2 class="sl-page-title" style="margin:0">Search history</h2>
+  {% if history %}
+  <button class="index-btn" style="background:var(--deny-bg);color:var(--deny)"
+          onclick="clearHistory(this)">Clear history</button>
+  {% endif %}
+</div>
+
+{% if history %}
+<div class="sl-card" style="padding:0;overflow:hidden">
+  <table class="sl-table">
+    <thead>
+      <tr>
+        <th>Query</th>
+        <th style="text-align:right">Results</th>
+        <th style="text-align:right">When</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for h in history %}
+      <tr>
+        <td>
+          <a href="/search?q={{ h.query | urlencode }}" class="sl-query-link">
+            {{ h.query }}
+          </a>
+        </td>
+        <td style="text-align:right;color:var(--muted)">{{ h.result_count }}</td>
+        <td style="text-align:right;color:var(--muted);white-space:nowrap;font-size:.8rem">
+          {{ (h.searched_at or '')[:16] | replace('T', ' ') }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="sl-card" style="text-align:center;color:var(--muted);padding:3rem">
+  No search history yet. Start searching!
+</div>
+{% endif %}
+
+<script>
+function clearHistory(btn) {
+  if (!confirm('Clear your entire search history?')) return;
+  btn.disabled = true;
+  fetch('/api/history/clear', { method: 'POST' })
+    .then(() => location.reload())
+    .catch(() => { btn.disabled = false; });
+}
+</script>
+
+{% endblock %}

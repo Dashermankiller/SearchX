@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}SearchX — Find Anything{% endblock %}
+{% block body %}
+<div class="home-wrap">
+  <header class="home-header">
+    <nav class="top-nav">
+      <a href="/history" class="nav-link">History</a>
+      <a href="/collections" class="nav-link">Collections</a>
+      <a href="/duplicates" class="nav-link">Duplicates</a>
+      <a href="/index-manager" class="nav-link">Index</a>
+      <a href="/settings" class="nav-link">Settings</a>
+    </nav>
+  </header>
+
+  <main class="home-main">
+    <h1 class="logo">Search<span>X</span></h1>
+    <p class="tagline">Local &amp; Web · Movies · Images · Audio · Video · Docs</p>
+
+    <form class="search-form" action="/search" method="get">
+      <div class="search-box">
+        <input
+          type="text"
+          name="q"
+          id="search-input"
+          class="search-input"
+          placeholder='Search... try filetype:mp4 or type:image'
+          autocomplete="off"
+          autofocus
+        >
+        <button type="submit" class="search-btn">Search</button>
+      </div>
+      <div id="autocomplete" class="autocomplete-list"></div>
+    </form>
+
+    <div class="flag-pills">
+      <span class="pill-label">Try:</span>
+      <button class="pill" onclick="insertFlag('filetype:mp4')">filetype:mp4</button>
+      <button class="pill" onclick="insertFlag('type:image')">type:image</button>
+      <button class="pill" onclick="insertFlag('type:audio')">type:audio</button>
+      <button class="pill" onclick="insertFlag('type:video')">type:video</button>
+      <button class="pill" onclick="insertFlag('type:document')">type:document</button>
+      <button class="pill" onclick="insertFlag('site:')">site:example.com</button>
+      <button class="pill" onclick="insertFlag('intitle:')">intitle:</button>
+      <button class="pill" onclick="insertFlag('source:local')">source:local</button>
+      <button class="pill" onclick="insertFlag('source:web')">source:web</button>
+    </div>
+
+    <div class="stats-bar">
+      <span>{{ stats.total | default(0) }} documents indexed</span>
+      {% for t, c in stats.by_type.items() %}
+        <span class="stat-chip stat-{{ t }}">{{ t }}: {{ c }}</span>
+      {% endfor %}
+    </div>
+
+    {% if recent %}
+    <div class="recent-searches">
+      <span class="recent-label">Recent:</span>
+      {% for q in recent %}
+        <a href="/search?q={{ q | urlencode }}" class="recent-pill">{{ q }}</a>
+      {% endfor %}
+      <a href="/history" class="recent-more">All history →</a>
+    </div>
+    {% endif %}
+
+    <div class="flag-help">
+      <details>
+        <summary>Search flag reference</summary>
+        <table class="flag-table">
+          <tr><th>Flag</th><th>Example</th><th>Description</th></tr>
+          <tr><td>filetype:</td><td>filetype:mp4</td><td>Match exact file extension</td></tr>
+          <tr><td>type:</td><td>type:video</td><td>Media type: image, audio, video, document, web</td></tr>
+          <tr><td>site:</td><td>site:imdb.com</td><td>Filter by domain (web results)</td></tr>
+          <tr><td>intitle:</td><td>intitle:batman</td><td>Word must appear in title</td></tr>
+          <tr><td>inurl:</td><td>inurl:download</td><td>Word must appear in URL</td></tr>
+          <tr><td>source:</td><td>source:local</td><td>local or web results only</td></tr>
+          <tr><td>"phrase"</td><td>"dark knight"</td><td>Exact phrase match</td></tr>
+          <tr><td>-word</td><td>batman -robin</td><td>Exclude results with word</td></tr>
+          <tr><td>before: / after:</td><td>after:2024-01-01</td><td>Filter by index date</td></tr>
+        </table>
+      </details>
+    </div>
+  </main>
+</div>
+
+<script>
+function insertFlag(flag) {
+  const input = document.getElementById('search-input');
+  input.value = (input.value + ' ' + flag).trim() + ' ';
+  input.focus();
+}
+</script>
+{% endblock %}

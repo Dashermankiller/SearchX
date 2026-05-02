@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+{% block title %}Web Crawler — SearchX{% endblock %}
+{% block body %}
+<div class="manager-wrap">
+  <header class="results-header">
+    <a href="/" class="logo-small">Search<span>X</span></a>
+    <h1 class="manager-title">Web Crawler</h1>
+    <nav class="top-nav">
+      <a href="/index-manager" class="nav-link">Index Manager</a>
+      <a href="/settings" class="nav-link">Settings</a>
+      <a href="/admin" class="nav-link">Admin</a>
+    </nav>
+  </header>
+
+  <div class="manager-body">
+
+    <!-- ── Status banner ──────────────────────────────────────────────── -->
+    <div class="crawler-status-bar" id="statusBar">
+      <div class="crawler-status-indicator">
+        <span class="crawler-dot" id="statusDot"></span>
+        <span id="statusLabel">Loading…</span>
+      </div>
+      <div class="crawler-status-meta" id="statusMeta"></div>
+    </div>
+
+    <!-- ── Queue stats ────────────────────────────────────────────────── -->
+    <div class="crawler-stats-row" id="statsRow">
+      <div class="crawler-stat-card">
+        <span class="cstat-value" id="statPending">—</span>
+        <span class="cstat-label">Pending</span>
+      </div>
+      <div class="crawler-stat-card">
+        <span class="cstat-value c-allow" id="statCrawled">—</span>
+        <span class="cstat-label">Crawled</span>
+      </div>
+      <div class="crawler-stat-card">
+        <span class="cstat-value c-deny" id="statFailed">—</span>
+        <span class="cstat-label">Failed</span>
+      </div>
+      <div class="crawler-stat-card">
+        <span class="cstat-value" id="statTotal">—</span>
+        <span class="cstat-label">Total queued</span>
+      </div>
+      <div class="crawler-stat-card">
+        <span class="cstat-value" id="statSession">—</span>
+        <span class="cstat-label">This session</span>
+      </div>
+    </div>
+
+    <!-- ── Seed URLs + controls ───────────────────────────────────────── -->
+    <div class="crawler-controls">
+
+      <div class="crawler-seed-block">
+        <label class="section-title" style="margin-bottom:.5rem;display:block">
+          Seed URLs
+          <span class="muted" style="font-size:.8rem;font-weight:400">
+            — one per line, e.g. https://en.wikipedia.org/wiki/Main_Page
+          </span>
+        </label>
+        <textarea id="seedInput" rows="5" spellcheck="false"
+          placeholder="https://example.com&#10;https://news.ycombinator.com&#10;https://en.wikipedia.org/wiki/Main_Page"></textarea>
+
+        <div class="crawler-options">
+          <label>
+            Politeness delay (s)
+            <input type="number" id="delayInput" value="1.0" min="0.1" max="60" step="0.1" style="width:5rem">
+          </label>
+        </div>
+      </div>
+
+      <div class="crawler-btn-row">
+        <button class="index-btn" id="btnStart"
+                style="background:var(--green)" onclick="crawlerStart()">
+          ▶ Start crawler
+        </button>
+        <button class="index-btn" id="btnStop"
+                style="background:var(--orange)" onclick="crawlerStop()" disabled>
+          ⏹ Stop
+        </button>
+        <button class="index-btn" onclick="crawlerSeed()"
+                style="background:var(--teal)">
+          + Add seeds
+        </button>
+        <button class="index-btn" onclick="crawlerClear()"
+                style="background:var(--red)" id="btnClear">
+          ✕ Clear queue
+        </button>
+      </div>
+
+    </div>
+
+    <!-- ── Two-column live feed ───────────────────────────────────────── -->
+    <div class="crawler-feed-wrap">
+
+      <!-- Recent activity -->
+      <div class="crawler-feed-col">
+        <h3 class="feed-title">Recent activity</h3>
+        <div class="crawler-feed" id="feedRecent">
+          <div class="feed-empty">No activity yet.</div>
+        </div>
+      </div>
+
+      <!-- Up-next queue -->
+      <div class="crawler-feed-col">
+        <h3 class="feed-title">Up next <span class="muted">(pending sample)</span></h3>
+        <div class="crawler-feed" id="feedPending">
+          <div class="feed-empty">Queue is empty.</div>
+        </div>
+      </div>
+
+    </div>
+
+  </div><!-- /.manager-body -->
+</div>
+
+<div id="crawl-toast" class="toast toast-success" style="display:none"></div>
+
+<script>
+// ── Utility ──────────────────────────────────────────────────────────────────
+
+function showToast(msg, ok) {
+  const t = document.getElementById('crawl-toast');
+  t.textContent = msg;
+  t.className   = 'toast toast-' + (ok ? 'success' : 'error');
+  t.style.display = 'block';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.style.display = 'none'; }, 4000);
+}
+
+function post(url, body) {
+  return fetch(url, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body),
+  }).then(r => r.json());
+}
+
+function seeds() {
+  return document.getElementById('seedInput').value
+    .split('\n').map(s => s.trim()).filter(Boolean);
+}
+
+// ── Controls ─────────────────────────────────────────────────────────────────
+
+function crawlerStart() {
+  const delay = parseFloat(document.getElementById('delayInput').value) || 1.0;
+  post('/api/crawler/start', { seeds: seeds(), delay })
+    .then(d => { showToast(d.message, d.ok); refreshStatus(); });
+}
+
+function crawlerStop() {
+  post('/api/crawler/stop', {})
+    .then(d => { showToast(d.message, true); refreshStatus(); });
+}
+
+function crawlerSeed() {
+  const list = seeds();
+  if (!list.length) { showToast('Enter at least one URL', false); return; }
+  post('/api/crawler/seed', { seeds: list })
+    .then(d => { showToast(`${d.queued} URL(s) added to queue`, d.ok); refreshStatus(); });
+}
+
+function crawlerClear() {
+  if (!confirm('Clear the entire crawl queue?')) return;
+  post('/api/crawler/clear', {})
+    .then(d => { showToast(d.message, d.ok); refreshStatus(); });
+}
+
+// ── Status polling ────────────────────────────────────────────────────────────
+
+function refreshStatus() {
+  fetch('/api/crawler/status')
+    .then(r => r.json())
+    .then(d => {
+      // Running indicator
+      const dot   = document.getElementById('statusDot');
+      const label = document.getElementById('statusLabel');
+      const meta  = document.getElementById('statusMeta');
+
+      if (d.running) {
+        dot.className   = 'crawler-dot dot-running';
+        label.textContent = 'Running';
+        meta.textContent  = d.current_url ? `↳ ${d.current_url}` : 'Idle — waiting for next URL…';
+        document.getElementById('btnStart').disabled = true;
+        document.getElementById('btnStop').disabled  = false;
+      } else {
+        dot.className   = 'crawler-dot dot-stopped';
+        label.textContent = 'Stopped';
+        meta.textContent  = '';
+        document.getElementById('btnStart').disabled = false;
+        document.getElementById('btnStop').disabled  = true;
+      }
+
+      // Stats
+      document.getElementById('statPending').textContent  = (d.pending  || 0).toLocaleString();
+      document.getElementById('statCrawled').textContent  = (d.crawled  || 0).toLocaleString();
+      document.getElementById('statFailed').textContent   = (d.failed   || 0).toLocaleString();
+      document.getElementById('statTotal').textContent    = (d.total    || 0).toLocaleString();
+      document.getElementById('statSession').textContent  = (d.session_crawled || 0).toLocaleString();
+
+      // Recent feed
+      const recent = d.recent || [];
+      const feedR  = document.getElementById('feedRecent');
+      if (recent.length === 0) {
+        feedR.innerHTML = '<div class="feed-empty">No activity yet.</div>';
+      } else {
+        feedR.innerHTML = recent.map(r => {
+          const ok      = r.status === 'crawled';
+          const active  = r.status === 'crawling';
+          const ico     = active ? '⏳' : (ok ? '✓' : '✗');
+          const cls     = active ? 'feed-item-active' : (ok ? 'feed-item-ok' : 'feed-item-err');
+          const domain  = r.domain || new URL(r.url).hostname;
+          const err     = r.error  ? `<span class="feed-err">${escHtml(r.error)}</span>` : '';
+          return `<div class="feed-item ${cls}">
+            <span class="feed-ico">${ico}</span>
+            <div class="feed-info">
+              <a href="${escHtml(r.url)}" target="_blank" rel="noopener" class="feed-url">${escHtml(r.url)}</a>
+              <span class="feed-domain">${escHtml(domain)} · depth ${r.depth ?? '?'}</span>
+              ${err}
+            </div>
+          </div>`;
+        }).join('');
+      }
+
+      // Pending feed
+      const pending = d.pending_sample || [];
+      const feedP   = document.getElementById('feedPending');
+      if (!pending.length) {
+        feedP.innerHTML = '<div class="feed-empty">Queue is empty.</div>';
+      } else {
+        feedP.innerHTML = pending.map(p => {
+          return `<div class="feed-item feed-item-pending">
+            <span class="feed-ico muted">○</span>
+            <div class="feed-info">
+              <span class="feed-url">${escHtml(p.url)}</span>
+              <span class="feed-domain">depth ${p.depth ?? 0}</span>
+            </div>
+          </div>`;
+        }).join('');
+      }
+    })
+    .catch(console.error);
+}
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Poll every 3 s while tab is visible, 15 s when hidden
+let _pollId = null;
+function startPolling(ms) {
+  clearInterval(_pollId);
+  _pollId = setInterval(refreshStatus, ms);
+}
+document.addEventListener('visibilitychange', () => {
+  startPolling(document.hidden ? 15000 : 3000);
+});
+startPolling(3000);
+refreshStatus();
+</script>
+{% endblock %}

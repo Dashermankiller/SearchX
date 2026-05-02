@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Collections — SearchX{% endblock %}
+{% block body %}
+<div class="manager-wrap">
+  <header class="results-header">
+    <a href="/" class="logo-small">Search<span>X</span></a>
+    <h1 class="manager-title">Collections</h1>
+    <nav class="top-nav">
+      <a href="/history" class="nav-link">History</a>
+      <a href="/index-manager" class="nav-link">Index</a>
+      <a href="/settings" class="nav-link">Settings</a>
+    </nav>
+  </header>
+
+  <div class="manager-body">
+
+    <!-- Create collection -->
+    <div class="index-form" style="margin-bottom:1.5rem">
+      <h2>New Collection</h2>
+      <div class="form-row" style="align-items:flex-end;gap:.75rem">
+        <div class="form-field" style="flex:1">
+          <label>Name</label>
+          <input type="text" id="col-name" placeholder="My Favourites" style="font-family:system-ui">
+        </div>
+        <div class="form-field" style="flex:2">
+          <label>Description <span class="hint">(optional)</span></label>
+          <input type="text" id="col-desc" placeholder="A brief description..." style="font-family:system-ui">
+        </div>
+        <button class="index-btn" onclick="createCollection()" style="white-space:nowrap">+ Create</button>
+      </div>
+    </div>
+
+    {% if collections %}
+    <h2 class="section-title">Your Collections <span class="count-badge">{{ collections | length }}</span></h2>
+    <div class="collections-grid">
+      {% for col in collections %}
+      <a href="/collection/{{ col.id }}" class="collection-card">
+        <div class="col-card-icon">📁</div>
+        <div class="col-card-body">
+          <div class="col-card-name">{{ col.name }}</div>
+          {% if col.description %}
+            <div class="col-card-desc">{{ col.description }}</div>
+          {% endif %}
+          <div class="col-card-meta">{{ col.item_count }} item{% if col.item_count != 1 %}s{% endif %}</div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="no-results">
+      <p>No collections yet. Create one above to start bookmarking results.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+function createCollection() {
+  const name = document.getElementById('col-name').value.trim();
+  const desc = document.getElementById('col-desc').value.trim();
+  if (!name) { alert('Name is required'); return; }
+  fetch('/api/collection/create', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name, description: desc})
+  }).then(r => r.json()).then(d => {
+    if (d.id) location.reload();
+    else alert(d.error || 'Error');
+  });
+}
+document.getElementById('col-name')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') createCollection();
+});
+</script>
+{% endblock %}

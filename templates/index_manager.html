@@ -1,0 +1,388 @@
+{% extends "base.html" %}
+{% block title %}Index Manager — SearchX{% endblock %}
+{% block body %}
+<div class="manager-wrap">
+  <header class="results-header">
+    <a href="/" class="logo-small">Search<span>X</span></a>
+    <h1 class="manager-title">Index Manager</h1>
+    <nav class="top-nav">
+      <a href="/crawler" class="nav-link">Web Crawler</a>
+      <a href="/duplicates" class="nav-link">Duplicates</a>
+      <a href="/collections" class="nav-link">Collections</a>
+      <a href="/settings" class="nav-link">Settings</a>
+    </nav>
+  </header>
+
+  <div class="manager-body">
+
+    <!-- Status card -->
+    <div class="status-card {% if status.running %}running{% elif status.done %}done{% elif status.error %}error{% endif %}"
+         id="status-card">
+      {% if status.running %}
+        <div class="status-icon spin">⟳</div>
+        <div>
+          <strong>Indexing…</strong>
+          <p id="status-count">{{ status.count }} files processed</p>
+          <p id="status-current" class="status-current">{{ status.current }}</p>
+        </div>
+      {% elif status.done %}
+        <div class="status-icon">✓</div>
+        <div><strong>Done.</strong> {{ status.count }} items indexed.</div>
+      {% elif status.error %}
+        <div class="status-icon err">✗</div>
+        <div><strong>Error:</strong> {{ status.error }}</div>
+      {% else %}
+        <div class="status-icon idle">●</div>
+        <div><strong>Idle</strong> — no job running</div>
+      {% endif %}
+    </div>
+
+    <!-- File Watcher -->
+    {% set watcher = watcher | default({'watching': false, 'available': false}) %}
+    <div class="watcher-card" id="watcher-card">
+      <div class="watcher-info">
+        <span class="watcher-icon" id="watcher-icon">
+          {% if watcher.watching %}👁{% else %}○{% endif %}
+        </span>
+        <div>
+          <strong>File Watcher</strong>
+          <p class="muted" style="font-size:.82rem" id="watcher-status-text">
+            {% if not watcher.available %}
+              Not available — install <code>watchdog</code>
+            {% elif watcher.watching %}
+              Watching local sources for changes
+            {% else %}
+              Idle — auto-detects file changes when running
+            {% endif %}
+          </p>
+        </div>
+      </div>
+      {% if watcher.available %}
+      <button class="src-btn {% if watcher.watching %}btn-toggle-on{% endif %}"
+              id="watcher-toggle-btn" onclick="toggleWatcher()">
+        {% if watcher.watching %}Stop Watcher{% else %}Start Watcher{% endif %}
+      </button>
+      {% endif %}
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-box">
+        <span class="stat-num">{{ stats.total }}</span>
+        <span class="stat-name">Total</span>
+      </div>
+      {% for t, c in stats.by_type.items() %}
+      <div class="stat-box stat-{{ t }}">
+        <span class="stat-num">{{ c }}</span>
+        <span class="stat-name">{{ t | capitalize }}</span>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- Sources list -->
+    {% if sources %}
+    <div class="sources-section">
+      <h2 class="section-title">Indexed Sources <span class="count-badge">{{ sources | length }}</span></h2>
+      <div class="sources-list">
+        {% for src in sources %}
+        <div class="source-card {% if not src.enabled %}source-disabled{% endif %}">
+          <div class="source-top">
+            <div class="source-info">
+              <span class="source-type-badge type-{{ src.type }}">{{ src.type }}</span>
+              <span class="source-label" title="{{ src.path }}">{{ src.label or src.path }}</span>
+            </div>
+            <div class="source-actions">
+              <a href="/source/{{ src.id }}/settings" class="src-btn btn-settings" title="Settings">⚙</a>
+              <form method="post" action="/source/{{ src.id }}/reindex" style="display:inline">
+                <button class="src-btn btn-reindex" title="Re-index" {% if status.running %}disabled{% endif %}>↺</button>
+              </form>
+              <form method="post" action="/source/{{ src.id }}/toggle" style="display:inline">
+                <button class="src-btn {% if src.enabled %}btn-toggle-on{% else %}btn-toggle-off{% endif %}"
+                        title="{% if src.enabled %}Disable{% else %}Enable{% endif %}">
+                  {% if src.enabled %}●{% else %}○{% endif %}
+                </button>
+              </form>
+              <form method="post" action="/source/{{ src.id }}/delete" style="display:inline"
+                    onsubmit="return confirm('Remove this source and all its {{ src.doc_count }} indexed documents?')">
+                <button class="src-btn btn-delete" title="Remove">✕</button>
+              </form>
+            </div>
+          </div>
+
+          <div class="source-meta">
+            <span class="source-path">{{ src.path }}</span>
+          </div>
+
+          <div class="source-stats">
+            <span class="src-stat {% if src.doc_count == 0 and src.last_indexed %}src-stat-warn{% endif %}">
+              {{ src.doc_count }} docs{% if src.doc_count == 0 and src.last_indexed %} ⚠{% endif %}
+            </span>
+            {% if src.last_indexed %}
+              <span class="src-stat">Last indexed: {{ src.last_indexed[:10] }}</span>
+            {% else %}
+              <span class="src-stat muted">Never indexed</span>
+            {% endif %}
+            {% if src.settings %}
+              {% if src.type == 'web' %}
+                <span class="src-stat">depth: {{ src.settings.get('depth', 2) }}</span>
+                <span class="src-stat">max: {{ src.settings.get('max_pages', 200) }} pages</span>
+              {% elif src.settings.get('extensions') %}
+                <span class="src-stat">exts: {{ src.settings.extensions | join(', ') }}</span>
+              {% endif %}
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Single URL indexer -->
+    <div class="index-form" style="margin-bottom:1.5rem">
+      <h2>Add Single URL</h2>
+      <p class="muted" style="font-size:.85rem;margin-bottom:.75rem">
+        Index exactly one page — no crawling, no following links.
+        Paste any URL or bare domain (e.g. <code>google.com</code>).
+      </p>
+      <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
+        <input type="text" id="single-url-input" placeholder="google.com or https://example.com/page"
+               class="net-input" style="flex:1;min-width:260px"
+               onkeydown="if(event.key==='Enter')indexSingleUrl()">
+        <button class="index-btn" id="single-url-btn" onclick="indexSingleUrl()">Add URL</button>
+      </div>
+      <div id="single-url-result" style="margin-top:.6rem;font-size:.85rem;display:none"></div>
+    </div>
+
+    <!-- Add new source form -->
+    <form class="index-form" method="post" action="/index-manager">
+      <h2>Add New Source (Crawler)</h2>
+
+      <div class="form-section">
+        <div class="label-row">
+          <label>Local folder paths <span class="hint">(one per line)</span></label>
+          <button type="button" class="browse-btn" onclick="openBrowser()">📁 Browse</button>
+        </div>
+        <textarea name="local_paths" id="local-paths-input" rows="3"
+          placeholder="/home/user/Movies&#10;/home/user/Music"
+          class="drop-zone"
+          ondragover="event.preventDefault();this.classList.add('drag-over')"
+          ondragleave="this.classList.remove('drag-over')"
+          ondrop="handleDrop(event)"></textarea>
+        <p class="hint" style="margin-top:.3rem">Drag folders from the browser below into the text area</p>
+      </div>
+
+      <div class="form-section">
+        <label>Web URLs to crawl <span class="hint">(one per line)</span></label>
+        <textarea name="web_urls" rows="3"
+          placeholder="https://example.com"></textarea>
+      </div>
+
+      <div class="form-row">
+        <div class="form-field">
+          <label>Crawl depth</label>
+          <input type="number" name="depth" value="2" min="0" max="5">
+        </div>
+        <div class="form-field">
+          <label>Max pages</label>
+          <input type="number" name="max_pages" value="200" min="1" max="5000">
+        </div>
+        <div class="form-field">
+          <label>Delay (sec)</label>
+          <input type="number" name="delay" value="0.3" min="0" max="5" step="0.1">
+        </div>
+        <div class="form-field checkbox-field">
+          <label>
+            <input type="checkbox" name="same_domain" checked>
+            Same domain only
+          </label>
+        </div>
+      </div>
+
+      <button type="submit" class="index-btn" {% if status.running %}disabled{% endif %}>Start Indexing</button>
+    </form>
+
+  </div>
+</div>
+
+<!-- Folder browser modal -->
+<div id="folder-modal" class="fb-overlay" style="display:none" onclick="if(event.target===this)closeBrowser()">
+  <div class="fb-modal">
+    <div class="fb-header">
+      <span class="fb-title">Select Folder</span>
+      <button class="fb-close" onclick="closeBrowser()">✕</button>
+    </div>
+
+    <div class="fb-path-bar">
+      <button class="fb-up" id="fb-up" onclick="navigateTo(fbParent)" title="Up">↑</button>
+      <span class="fb-current" id="fb-current"></span>
+    </div>
+
+    <div class="fb-toggle-row">
+      <label class="fb-toggle-label">
+        <input type="checkbox" id="fb-show-hidden" onchange="renderDirs()"> Show hidden folders
+      </label>
+    </div>
+
+    <div class="fb-list" id="fb-list"></div>
+
+    <div class="fb-footer">
+      <button class="fb-select-btn" id="fb-select-btn" onclick="selectCurrent()">
+        ✓ Select This Folder
+      </button>
+      <button class="fb-cancel" onclick="closeBrowser()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function indexSingleUrl() {
+  const input = document.getElementById('single-url-input');
+  const btn   = document.getElementById('single-url-btn');
+  const out   = document.getElementById('single-url-result');
+  const url   = input.value.trim();
+  if (!url) return;
+
+  btn.disabled   = true;
+  btn.textContent = 'Indexing…';
+  out.style.display = 'none';
+
+  fetch('/api/index-single', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({url})
+  })
+  .then(r => r.json())
+  .then(d => {
+    out.style.display = '';
+    if (d.ok) {
+      out.innerHTML = `<span style="color:var(--green)">✓ Indexed: <strong>${d.title || d.url}</strong> — <a href="/search?q=${encodeURIComponent(url)}" style="color:var(--accent)">Search it</a></span>`;
+      input.value = '';
+    } else {
+      out.innerHTML = `<span style="color:#f87171">✗ ${d.error}</span>`;
+    }
+    btn.disabled    = false;
+    btn.textContent = 'Add URL';
+  })
+  .catch(() => {
+    out.style.display  = '';
+    out.innerHTML      = '<span style="color:#f87171">✗ Request failed</span>';
+    btn.disabled       = false;
+    btn.textContent    = 'Add URL';
+  });
+}
+
+let fbCurrent = '';
+let fbParent = null;
+let fbDirs = [];
+
+function openBrowser() {
+  document.getElementById('folder-modal').style.display = 'flex';
+  navigate('{{ home_dir }}');
+}
+function closeBrowser() {
+  document.getElementById('folder-modal').style.display = 'none';
+}
+
+function navigate(path) {
+  fetch('/api/browse?path=' + encodeURIComponent(path))
+    .then(r => r.json())
+    .then(data => {
+      fbCurrent = data.current;
+      fbParent  = data.parent;
+      fbDirs    = data.dirs;
+      document.getElementById('fb-current').textContent = fbCurrent;
+      document.getElementById('fb-up').disabled = !fbParent;
+      renderDirs();
+    });
+}
+
+function navigateTo(path) {
+  if (path) navigate(path);
+}
+
+function renderDirs() {
+  const showHidden = document.getElementById('fb-show-hidden').checked;
+  const list = document.getElementById('fb-list');
+  const visible = fbDirs.filter(d => showHidden || !d.hidden);
+
+  if (!visible.length) {
+    list.innerHTML = '<div class="fb-empty">No subfolders</div>';
+    return;
+  }
+
+  list.innerHTML = visible.map(d => `
+    <div class="fb-item ${d.hidden ? 'fb-hidden' : ''}"
+         draggable="true"
+         ondragstart="event.dataTransfer.setData('text/plain','${d.path.replace(/'/g,"\\'")}');event.dataTransfer.effectAllowed='copy';"
+         onclick="navigate('${d.path.replace(/'/g,"\\'")}')">
+      <span class="fb-icon">📁</span>
+      <span class="fb-name">${d.name}</span>
+      <button class="fb-add-btn" onclick="event.stopPropagation();addFolder('${d.path.replace(/'/g,"\\'")}')">+ Add</button>
+    </div>
+  `).join('');
+}
+
+function handleDrop(event) {
+  event.preventDefault();
+  event.target.classList.remove('drag-over');
+  const path = event.dataTransfer.getData('text/plain');
+  if (path) addFolder(path);
+}
+
+function selectCurrent() {
+  addFolder(fbCurrent);
+  closeBrowser();
+}
+
+function addFolder(path) {
+  const ta = document.getElementById('local-paths-input');
+  const existing = ta.value.trim();
+  const lines = existing ? existing.split('\n') : [];
+  if (!lines.includes(path)) {
+    ta.value = [...lines, path].join('\n');
+  }
+}
+
+// Watcher toggle
+function toggleWatcher() {
+  const btn = document.getElementById('watcher-toggle-btn');
+  const isWatching = btn.textContent.trim() === 'Stop Watcher';
+  const url = isWatching ? '/api/watcher/stop' : '/api/watcher/start';
+  fetch(url, {method:'POST'}).then(r => r.json()).then(d => {
+    const icon = document.getElementById('watcher-icon');
+    const text = document.getElementById('watcher-status-text');
+    if (d.watching) {
+      btn.textContent = 'Stop Watcher';
+      btn.classList.add('btn-toggle-on');
+      icon.textContent = '👁';
+      text.textContent = 'Watching local sources for changes';
+    } else {
+      btn.textContent = 'Start Watcher';
+      btn.classList.remove('btn-toggle-on');
+      icon.textContent = '○';
+      text.textContent = 'Idle — auto-detects file changes when running';
+    }
+  });
+}
+
+{% if status.running %}
+let _reloaded = false;
+(function poll() {
+  fetch('/api/index-status')
+    .then(r => r.json())
+    .then(s => {
+      const el = document.getElementById('status-count');
+      const cur = document.getElementById('status-current');
+      if (el) el.textContent = s.count + ' files processed';
+      if (cur) cur.textContent = s.current || '';
+      if (s.running) {
+        setTimeout(poll, 1000);
+      } else if (!_reloaded) {
+        _reloaded = true;
+        location.reload();
+      }
+    });
+})();
+{% endif %}
+</script>
+{% endblock %}

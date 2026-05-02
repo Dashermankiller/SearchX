@@ -1,0 +1,623 @@
+{% extends "settings_layout.html" %}
+{% block settings_title %}Settings{% endblock %}
+{% block settings_body %}
+<div class="manager-body" style="padding:0">
+
+    {% if saved %}
+    <div class="alert-success">✓ Settings saved.</div>
+    {% endif %}
+
+    <form class="index-form" method="post" action="/settings">
+
+      <!-- ── Auto Web Crawl ─────────────────────────────────────────────── -->
+      <h2 class="section-title">Auto Web Crawl</h2>
+      <p class="settings-desc">
+        When enabled, SearchX will automatically re-crawl all enabled web sources
+        from the Index Manager on the chosen schedule.
+        {% if crawl_status.web_source_count == 0 %}
+          <strong style="color:var(--orange)">
+            ⚠ No enabled web sources found — add some in the
+            <a href="/index-manager">Index Manager</a> first.
+          </strong>
+        {% else %}
+          <span class="muted">{{ crawl_status.web_source_count }} web source(s) will be crawled.</span>
+        {% endif %}
+      </p>
+
+      <div class="crawl-card">
+
+        <!-- Toggle row -->
+        <div class="crawl-row">
+          <div>
+            <strong>Enable auto-crawl</strong>
+            <p class="muted" style="font-size:.8rem;margin:.2rem 0 0">
+              Crawls run silently in the background — your site stays available.
+            </p>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" name="auto_crawl_enabled" id="autoCrawlToggle"
+                   {% if cfg.auto_crawl_enabled %}checked{% endif %}>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <!-- Interval row -->
+        <div class="crawl-row" id="crawlIntervalRow"
+             style="{% if not cfg.auto_crawl_enabled %}opacity:.45;pointer-events:none{% endif %}">
+          <div>
+            <strong>Crawl interval</strong>
+            <p class="muted" style="font-size:.8rem;margin:.2rem 0 0">How often to re-index web sources.</p>
+          </div>
+          <select name="auto_crawl_interval_hours" class="crawl-select">
+            {% for h, label in [
+              (1,   'Every hour'),
+              (6,   'Every 6 hours'),
+              (12,  'Every 12 hours'),
+              (24,  'Every 24 hours'),
+              (48,  'Every 2 days'),
+              (168, 'Every week'),
+            ] %}
+              <option value="{{ h }}" {% if cfg.auto_crawl_interval_hours == h %}selected{% endif %}>
+                {{ label }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Status row -->
+        <div class="crawl-status-row" id="crawlStatusRow"
+             style="{% if not cfg.auto_crawl_enabled %}opacity:.45{% endif %}">
+          <div class="crawl-stat">
+            <span class="crawl-stat-label">Last crawl</span>
+            <span class="crawl-stat-value">{{ crawl_status.last_crawl_ago }}</span>
+          </div>
+          <div class="crawl-stat">
+            <span class="crawl-stat-label">Next crawl</span>
+            <span class="crawl-stat-value {% if crawl_status.overdue %}c-deny{% endif %}">
+              {% if cfg.auto_crawl_enabled %}{{ crawl_status.next_crawl_in }}{% else %}—{% endif %}
+            </span>
+          </div>
+          <button type="button" class="index-btn"
+                  style="background:var(--teal);white-space:nowrap;padding:.4rem .9rem"
+                  onclick="triggerCrawl(this)"
+                  {% if crawl_status.web_source_count == 0 %}disabled title="No web sources"{% endif %}>
+            ▶ Crawl now
+          </button>
+        </div>
+
+      </div>
+
+      <!-- ── Crawler Network Settings ─────────────────────────────────────── -->
+      <h2 class="section-title" style="margin-top:2rem">Crawler Network Settings</h2>
+      <p class="settings-desc">
+        Controls how aggressively the web crawler fetches pages.
+        Changes take effect the next time the crawler is started.
+      </p>
+
+      <div class="crawl-card">
+
+        <div class="net-settings-grid">
+
+          <div class="net-setting-row">
+            <div class="net-setting-label">
+              <strong>Max concurrent requests</strong>
+              <p class="muted" style="font-size:.8rem;margin:.15rem 0 0">
+                Total simultaneous HTTP requests across all domains.
+                Higher = faster on fast networks.
+              </p>
+            </div>
+            <input type="number" name="crawler_max_concurrent"
+                   value="{{ cfg.crawler_max_concurrent }}"
+                   min="1" max="2000" class="net-input">
+          </div>
+
+          <div class="net-setting-row">
+            <div class="net-setting-label">
+              <strong>Max per domain</strong>
+              <p class="muted" style="font-size:.8rem;margin:.15rem 0 0">
+                Max concurrent requests to a single domain. Keep low to be polite.
+              </p>
+            </div>
+            <input type="number" name="crawler_max_per_domain"
+                   value="{{ cfg.crawler_max_per_domain }}"
+                   min="1" max="20" class="net-input">
+          </div>
+
+          <div class="net-setting-row">
+            <div class="net-setting-label">
+              <strong>Delay per domain (seconds)</strong>
+              <p class="muted" style="font-size:.8rem;margin:.15rem 0 0">
+                Minimum wait between requests to the same domain.
+              </p>
+            </div>
+            <input type="number" name="crawler_delay"
+                   value="{{ cfg.crawler_delay }}"
+                   min="0.1" max="60" step="0.1" class="net-input">
+          </div>
+
+          <div class="net-setting-row">
+            <div class="net-setting-label">
+              <strong>DB write workers</strong>
+              <p class="muted" style="font-size:.8rem;margin:.15rem 0 0">
+                Thread pool size for database writes. Match to your CPU core count.
+              </p>
+            </div>
+            <input type="number" name="crawler_db_workers"
+                   value="{{ cfg.crawler_db_workers }}"
+                   min="1" max="128" class="net-input">
+          </div>
+
+          <div class="net-setting-row">
+            <div class="net-setting-label">
+              <strong>Connection pool limit</strong>
+              <p class="muted" style="font-size:.8rem;margin:.15rem 0 0">
+                Maximum total open TCP connections. Should be ≥ max concurrent.
+              </p>
+            </div>
+            <input type="number" name="crawler_connector_limit"
+                   value="{{ cfg.crawler_connector_limit }}"
+                   min="10" max="5000" class="net-input">
+          </div>
+
+          <div class="net-setting-row">
+            <div class="net-setting-label">
+              <strong>DNS cache TTL (seconds)</strong>
+              <p class="muted" style="font-size:.8rem;margin:.15rem 0 0">
+                How long to cache DNS lookups. Longer = fewer DNS queries.
+              </p>
+            </div>
+            <input type="number" name="crawler_dns_ttl"
+                   value="{{ cfg.crawler_dns_ttl }}"
+                   min="30" max="3600" class="net-input">
+          </div>
+
+          <div class="net-setting-row">
+            <div class="net-setting-label">
+              <strong>Domain crawl budget</strong>
+              <p class="muted" style="font-size:.8rem;margin:.15rem 0 0">
+                Maximum pages to crawl per domain per session. Prevents runaway crawls on large sites.
+              </p>
+            </div>
+            <input type="number" name="crawler_domain_budget"
+                   value="{{ cfg.crawler_domain_budget }}"
+                   min="1" max="50000" class="net-input">
+          </div>
+
+          <div class="net-setting-row">
+            <div class="net-setting-label">
+              <strong>Capture screenshots</strong>
+              <p class="muted" style="font-size:.8rem;margin:.15rem 0 0">
+                Save a JPEG thumbnail of each crawled page using Playwright. Requires playwright installed.
+              </p>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" name="crawler_screenshots"
+                     {% if cfg.crawler_screenshots %}checked{% endif %}>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+        </div>
+
+        <div style="margin-top:1rem;padding:.7rem 1rem;background:var(--bg2);border-radius:6px;font-size:.8rem;color:var(--muted)">
+          💡 <strong>Preset guides:</strong>
+          <a href="#" onclick="applyPreset('conservative');return false" class="preset-link">Conservative</a> ·
+          <a href="#" onclick="applyPreset('balanced');return false" class="preset-link">Balanced</a> ·
+          <a href="#" onclick="applyPreset('aggressive');return false" class="preset-link">Aggressive (5GbE+)</a>
+        </div>
+
+      </div>
+
+      <!-- ── TTS ──────────────────────────────────────────────────────────── -->
+      <h2 class="section-title" style="margin-top:2rem">Text-to-Speech (AI Answer)</h2>
+      <p class="settings-desc">
+        Powers the Speak button on AI answers. Edge TTS is free with no API key required.
+        ElevenLabs offers more expressive voices with an API key.
+      </p>
+
+      <div class="crawl-card">
+        <!-- Provider -->
+        <div class="net-setting-row">
+          <div class="net-setting-label">
+            <strong>TTS provider</strong>
+          </div>
+          <select name="tts_provider" class="crawl-select" onchange="showTtsProvider(this.value)">
+            {% for val, label in [('edge','Edge TTS — free, no key needed'),('elevenlabs','ElevenLabs — premium AI voices')] %}
+            <option value="{{ val }}" {% if (cfg.tts_provider or 'edge') == val %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Edge TTS options -->
+        <div id="tts-edge" class="ai-provider-section">
+          <div class="net-setting-row">
+            <div class="net-setting-label">
+              <strong>Voice</strong>
+              <p class="muted" style="font-size:.8rem;margin:.15rem 0 0">
+                Microsoft neural voices — 400+ available, all free
+              </p>
+            </div>
+            <select name="edge_tts_voice" class="crawl-select">
+              {% set ev = cfg.edge_tts_voice or 'en-US-AriaNeural' %}
+              {% for v_id, v_name in [
+                ('en-US-AriaNeural',    'Aria — US female, warm'),
+                ('en-US-JennyNeural',   'Jenny — US female, friendly'),
+                ('en-US-GuyNeural',     'Guy — US male'),
+                ('en-US-EricNeural',    'Eric — US male, calm'),
+                ('en-US-BrianNeural',   'Brian — US male, deep'),
+                ('en-GB-SoniaNeural',   'Sonia — British female'),
+                ('en-GB-RyanNeural',    'Ryan — British male'),
+                ('en-AU-NatashaNeural', 'Natasha — Australian female'),
+                ('en-AU-WilliamNeural', 'William — Australian male'),
+              ] %}
+              <option value="{{ v_id }}" {% if ev == v_id %}selected{% endif %}>{{ v_name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <!-- ElevenLabs options -->
+        <div id="tts-elevenlabs" class="ai-provider-section">
+        <div class="net-setting-row">
+          <div class="net-setting-label">
+            <strong>ElevenLabs API key</strong>
+            <p class="muted" style="font-size:.8rem;margin:.15rem 0 0">elevenlabs.io → Profile → API Keys</p>
+          </div>
+          <input type="password" name="elevenlabs_api_key"
+                 value="{{ cfg.elevenlabs_api_key or '' }}"
+                 placeholder="sk_..."
+                 class="net-input" style="width:220px;font-family:monospace">
+        </div>
+        <div class="net-setting-row">
+          <div class="net-setting-label">
+            <strong>Voice</strong>
+            <p class="muted" style="font-size:.8rem;margin:.15rem 0 0">
+              Choose a preset or paste any Voice ID from elevenlabs.io/app/voice-library
+            </p>
+          </div>
+          <select name="elevenlabs_voice_id" class="crawl-select"
+                  onchange="document.getElementById('el-voice-custom').value=this.value">
+            {% set vid = cfg.elevenlabs_voice_id or '21m00Tcm4TlvDq8ikWAM' %}
+            {% for v_id, v_name in [
+              ('21m00Tcm4TlvDq8ikWAM','Rachel — calm, warm female'),
+              ('nPczCjzI2devNBz1zQrb','Brian — deep US male'),
+              ('onwK4e9ZLuTAKqWW03F9','Daniel — authoritative British male'),
+              ('EXAVITQu4vr4xnSDxMaL','Sarah — soft female'),
+              ('TX3LPaxmHKxFdv7VOQHJ','Liam — articulate US male'),
+              ('XrExE9yKIg1WjnnlVkGX','Matilda — warm US female'),
+              ('pNInz6obpgDQGcFmaJgB','Adam — deep US male'),
+            ] %}
+            <option value="{{ v_id }}" {% if vid == v_id %}selected{% endif %}>{{ v_name }}</option>
+            {% endfor %}
+            <option value="custom" {% if vid not in ['21m00Tcm4TlvDq8ikWAM','nPczCjzI2devNBz1zQrb','onwK4e9ZLuTAKqWW03F9','EXAVITQu4vr4xnSDxMaL','TX3LPaxmHKxFdv7VOQHJ','XrExE9yKIg1WjnnlVkGX','pNInz6obpgDQGcFmaJgB'] %}selected{% endif %}>Custom voice ID…</option>
+          </select>
+        </div>
+        <div class="net-setting-row">
+          <div class="net-setting-label">
+            <strong>Voice ID</strong>
+            <p class="muted" style="font-size:.8rem;margin:.15rem 0 0">Filled automatically from dropdown, or paste a custom ID</p>
+          </div>
+          <input type="text" name="elevenlabs_voice_id" id="el-voice-custom"
+                 value="{{ cfg.elevenlabs_voice_id or '21m00Tcm4TlvDq8ikWAM' }}"
+                 class="net-input" style="width:220px;font-family:monospace">
+        </div>
+        <div class="net-setting-row">
+          <div class="net-setting-label">
+            <strong>Model</strong>
+            <p class="muted" style="font-size:.8rem;margin:.15rem 0 0">Flash is fastest, Multilingual v2 is highest quality</p>
+          </div>
+          <select name="elevenlabs_model" class="crawl-select">
+            {% for v_id, v_name in [
+              ('eleven_flash_v2_5','Flash v2.5 — fastest'),
+              ('eleven_turbo_v2_5','Turbo v2.5 — fast + quality'),
+              ('eleven_multilingual_v2','Multilingual v2 — highest quality'),
+            ] %}
+            <option value="{{ v_id }}" {% if (cfg.elevenlabs_model or 'eleven_flash_v2_5') == v_id %}selected{% endif %}>{{ v_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        </div><!-- /tts-elevenlabs -->
+      </div>
+
+      <!-- ── Extension ──────────────────────────────────────────────────── -->
+      <h2 class="section-title" style="margin-top:2rem">Browser Extension</h2>
+      <p class="settings-desc">
+        Configure the SearchX browser extension. Leave the API key blank to allow any
+        extension to add pages without authentication.
+      </p>
+
+      <div class="crawl-card">
+        <div class="net-setting-row">
+          <div class="net-setting-label">
+            <strong>Extension API key</strong>
+            <p class="muted" style="font-size:.8rem;margin:.15rem 0 0">
+              Optional secret key the extension must send with each request. Leave blank to disable auth.
+            </p>
+          </div>
+          <input type="text" name="extension_api_key"
+                 value="{{ cfg.extension_api_key or '' }}"
+                 placeholder="leave blank to disable"
+                 class="net-input" style="width:220px;font-family:monospace">
+        </div>
+        <p class="muted" style="font-size:.8rem;margin-top:.75rem;padding-top:.75rem;border-top:1px solid var(--border)">
+          Install the extension from <code>extension/</code> in your SearchX directory.
+          Set your server URL (e.g. <code>http://localhost:5000</code>) in the extension popup.
+        </p>
+      </div>
+
+      <!-- ── AI Answer Box ───────────────────────────────────────────────── -->
+      <h2 class="section-title" style="margin-top:2rem">AI Answer Box</h2>
+      <p class="settings-desc">
+        Shows a short AI-generated answer above search results.
+        Select a provider — Ollama is free and runs locally.
+      </p>
+
+      <div class="crawl-card">
+
+        <!-- Answer mode -->
+        <div class="net-setting-row">
+          <div class="net-setting-label">
+            <strong>Answer mode</strong>
+            <p class="muted" style="font-size:.8rem;margin:.15rem 0 0">
+              <strong>From results</strong> — AI summarises your indexed documents.<br>
+              <strong>AI knowledge</strong> — AI answers from its own training data even if nothing is indexed.
+            </p>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:.5rem">
+            {% for val, label in [('results','From results only'),('free','AI knowledge (always answers)')] %}
+            <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer">
+              <input type="radio" name="ai_answer_mode" value="{{ val }}"
+                     {% if (cfg.ai_answer_mode or 'results') == val %}checked{% endif %}>
+              <span>{{ label }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Provider selector -->
+        <div class="net-setting-row">
+          <div class="net-setting-label">
+            <strong>AI provider</strong>
+            <p class="muted" style="font-size:.8rem;margin:.15rem 0 0">
+              Ollama is free and local. Others require an API key.
+            </p>
+          </div>
+          <select name="ai_provider" class="crawl-select" onchange="showAiProvider(this.value)">
+            {% for val, label in [('ollama','Ollama (free, local)'),('anthropic','Claude (Anthropic)'),('openai','OpenAI'),('gemini','Google Gemini')] %}
+            <option value="{{ val }}" {% if (cfg.ai_provider or 'ollama') == val %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Ollama -->
+        <div id="ai-ollama" class="ai-provider-section">
+          <div class="net-setting-row">
+            <div class="net-setting-label">
+              <strong>Ollama server URL</strong>
+              <p class="muted" style="font-size:.8rem;margin:.15rem 0 0">
+                Default: http://localhost:11434 —
+                <a href="https://ollama.com" target="_blank" rel="noopener" style="color:var(--accent)">Install Ollama</a>
+                then run <code style="background:var(--bg3);padding:.1rem .3rem;border-radius:3px">ollama pull llama3.2</code>
+              </p>
+            </div>
+            <input type="text" name="ollama_url" value="{{ cfg.ollama_url or 'http://localhost:11434' }}"
+                   class="net-input" style="width:220px">
+          </div>
+          <div class="net-setting-row">
+            <div class="net-setting-label">
+              <strong>Ollama model</strong>
+              <p class="muted" style="font-size:.8rem;margin:.15rem 0 0">
+                Any model you have pulled. e.g. llama3.2, mistral, gemma3
+              </p>
+            </div>
+            <input type="text" name="ollama_model" value="{{ cfg.ollama_model or 'llama3.2' }}"
+                   placeholder="llama3.2" class="net-input" style="width:160px">
+          </div>
+        </div>
+
+        <!-- Anthropic -->
+        <div id="ai-anthropic" class="ai-provider-section">
+          <div class="net-setting-row">
+            <div class="net-setting-label">
+              <strong>Anthropic API key</strong>
+              <p class="muted" style="font-size:.8rem;margin:.15rem 0 0">console.anthropic.com</p>
+            </div>
+            <input type="password" name="anthropic_api_key" value="{{ cfg.anthropic_api_key or '' }}"
+                   placeholder="sk-ant-..." class="net-input" style="width:220px;font-family:monospace">
+          </div>
+          <div class="net-setting-row">
+            <div class="net-setting-label"><strong>Model</strong></div>
+            <input type="text" name="anthropic_model" value="{{ cfg.anthropic_model or 'claude-haiku-4-5-20251001' }}"
+                   class="net-input" style="width:220px">
+          </div>
+        </div>
+
+        <!-- OpenAI -->
+        <div id="ai-openai" class="ai-provider-section">
+          <div class="net-setting-row">
+            <div class="net-setting-label">
+              <strong>OpenAI API key</strong>
+              <p class="muted" style="font-size:.8rem;margin:.15rem 0 0">platform.openai.com</p>
+            </div>
+            <input type="password" name="openai_api_key" value="{{ cfg.openai_api_key or '' }}"
+                   placeholder="sk-..." class="net-input" style="width:220px;font-family:monospace">
+          </div>
+          <div class="net-setting-row">
+            <div class="net-setting-label"><strong>Model</strong></div>
+            <input type="text" name="openai_model" value="{{ cfg.openai_model or 'gpt-4o-mini' }}"
+                   placeholder="gpt-4o-mini" class="net-input" style="width:160px">
+          </div>
+        </div>
+
+        <!-- Gemini -->
+        <div id="ai-gemini" class="ai-provider-section">
+          <div class="net-setting-row">
+            <div class="net-setting-label">
+              <strong>Google Gemini API key</strong>
+              <p class="muted" style="font-size:.8rem;margin:.15rem 0 0">
+                aistudio.google.com — free tier available (gemini-1.5-flash)
+              </p>
+            </div>
+            <input type="password" name="gemini_api_key" value="{{ cfg.gemini_api_key or '' }}"
+                   placeholder="AIza..." class="net-input" style="width:220px;font-family:monospace">
+          </div>
+          <div class="net-setting-row">
+            <div class="net-setting-label"><strong>Model</strong></div>
+            <input type="text" name="gemini_model" value="{{ cfg.gemini_model or 'gemini-1.5-flash' }}"
+                   placeholder="gemini-1.5-flash" class="net-input" style="width:160px">
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ── File Open Permissions ──────────────────────────────────────── -->
+      <h2 class="section-title" style="margin-top:2rem">File Open Permissions</h2>
+      <p class="settings-desc">
+        Controls which local file types can be opened from search results.
+        Denied extensions are always blocked. Allowed extensions are the only ones
+        that can open — anything not listed is blocked.
+      </p>
+
+      <div class="settings-grid">
+
+        <!-- Allowed -->
+        <div class="settings-col">
+          <div class="settings-col-header allowed-header">
+            <span class="col-icon">✓</span>
+            <div>
+              <strong>Allowed extensions</strong>
+              <p class="col-desc">These file types can be opened. One per line or comma-separated.</p>
+            </div>
+          </div>
+          <textarea name="open_allowed" rows="16" spellcheck="false">{{ cfg.open_allowed | join('\n') }}</textarea>
+          <div class="ext-chips">
+            {% for e in cfg.open_allowed %}
+              <span class="ext-chip allowed-chip">.{{ e }}</span>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Denied -->
+        <div class="settings-col">
+          <div class="settings-col-header denied-header">
+            <span class="col-icon">✗</span>
+            <div>
+              <strong>Blocked extensions</strong>
+              <p class="col-desc">These are always blocked even if listed as allowed. One per line or comma-separated.</p>
+            </div>
+          </div>
+          <textarea name="open_denied" rows="16" spellcheck="false">{{ cfg.open_denied | join('\n') }}</textarea>
+          <div class="ext-chips">
+            {% for e in cfg.open_denied %}
+              <span class="ext-chip denied-chip">.{{ e }}</span>
+            {% endfor %}
+          </div>
+        </div>
+
+      </div>
+
+      <div class="settings-actions">
+        <button type="submit" class="index-btn">Save Settings</button>
+        <a href="/settings?reset=1" class="reset-link" onclick="return confirm('Reset to defaults?')">Reset to defaults</a>
+      </div>
+    </form>
+
+    <!-- Rule summary -->
+    <div class="rule-summary">
+      <h3>How file permissions work</h3>
+      <ol class="rule-list">
+        <li>If the extension is in <strong class="c-deny">Blocked</strong> → always denied, no matter what.</li>
+        <li>If the extension is <strong>not</strong> in <strong class="c-allow">Allowed</strong> → denied.</li>
+        <li>If it passes both checks → file opens with your default app.</li>
+      </ol>
+    </div>
+
+  </div>
+
+<div id="crawl-toast" class="toast toast-success" style="display:none"></div>
+
+<script>
+// TTS provider toggle
+function showTtsProvider(val) {
+  document.getElementById('tts-edge').style.display       = (val === 'edge')        ? '' : 'none';
+  document.getElementById('tts-elevenlabs').style.display = (val === 'elevenlabs')  ? '' : 'none';
+}
+(function() {
+  const sel = document.querySelector('[name="tts_provider"]');
+  if (sel) showTtsProvider(sel.value);
+})();
+
+// Show only the selected AI provider section
+function showAiProvider(val) {
+  ['ollama','anthropic','openai','gemini'].forEach(p => {
+    const el = document.getElementById('ai-' + p);
+    if (el) el.style.display = (p === val) ? '' : 'none';
+  });
+}
+// Init on load
+(function() {
+  const sel = document.querySelector('[name="ai_provider"]');
+  if (sel) showAiProvider(sel.value);
+})();
+
+// Network presets
+const PRESETS = {
+  conservative: { crawler_max_concurrent: 20,  crawler_max_per_domain: 1, crawler_delay: 2.0, crawler_db_workers: 8,  crawler_connector_limit: 100,  crawler_dns_ttl: 300 },
+  balanced:     { crawler_max_concurrent: 100, crawler_max_per_domain: 2, crawler_delay: 1.0, crawler_db_workers: 16, crawler_connector_limit: 400,  crawler_dns_ttl: 600 },
+  aggressive:   { crawler_max_concurrent: 500, crawler_max_per_domain: 3, crawler_delay: 1.0, crawler_db_workers: 32, crawler_connector_limit: 1000, crawler_dns_ttl: 600 },
+};
+function applyPreset(name) {
+  const p = PRESETS[name];
+  if (!p) return;
+  Object.entries(p).forEach(([k, v]) => {
+    const el = document.querySelector(`[name="${k}"]`);
+    if (el) el.value = v;
+  });
+}
+
+// Dim interval + status rows when toggle is off
+document.getElementById('autoCrawlToggle').addEventListener('change', function() {
+  const dim = !this.checked;
+  document.getElementById('crawlIntervalRow').style.opacity  = dim ? '0.45' : '1';
+  document.getElementById('crawlIntervalRow').style.pointerEvents = dim ? 'none' : '';
+  document.getElementById('crawlStatusRow').style.opacity   = dim ? '0.45' : '1';
+});
+
+// Manual trigger
+function triggerCrawl(btn) {
+  btn.disabled = true;
+  btn.textContent = '⏳ Starting…';
+  fetch('/api/auto-crawl/trigger', { method: 'POST' })
+    .then(r => r.json())
+    .then(d => {
+      const t = document.getElementById('crawl-toast');
+      t.textContent  = d.message;
+      t.className    = 'toast toast-' + (d.ok ? 'success' : 'error');
+      t.style.display = 'block';
+      setTimeout(() => { t.style.display = 'none'; }, 4000);
+      btn.textContent = '▶ Crawl now';
+      btn.disabled = false;
+    })
+    .catch(() => {
+      btn.textContent = '▶ Crawl now';
+      btn.disabled = false;
+    });
+}
+
+// Live preview chips as user types
+['open_allowed', 'open_denied'].forEach(name => {
+  const ta    = document.querySelector(`textarea[name="${name}"]`);
+  const chips = ta.nextElementSibling;
+  const isCls = name === 'open_allowed' ? 'allowed-chip' : 'denied-chip';
+  function update() {
+    const exts = ta.value.replace(/,/g, '\n').split('\n')
+      .map(e => e.trim().replace(/^\./, '')).filter(Boolean);
+    chips.innerHTML = exts.map(e =>
+      `<span class="ext-chip ${isCls}">.${e}</span>`
+    ).join('');
+  }
+  ta.addEventListener('input', update);
+});
+</script>
+{% endblock %}
+

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Search History — SearchX{% endblock %}
+{% block body %}
+<div class="manager-wrap">
+  <header class="results-header">
+    <a href="/" class="logo-small">Search<span>X</span></a>
+    <h1 class="manager-title">Search History</h1>
+    <nav class="top-nav">
+      <a href="/collections" class="nav-link">Collections</a>
+      <a href="/index-manager" class="nav-link">Index</a>
+      <a href="/settings" class="nav-link">Settings</a>
+    </nav>
+  </header>
+
+  <div class="manager-body">
+    {% if history %}
+    <div class="history-toolbar">
+      <span class="muted">{{ history | length }} searches</span>
+      <button class="danger-btn" id="clear-history-btn" style="font-size:.8rem;padding:.35rem .8rem">
+        Clear All History
+      </button>
+    </div>
+
+    <div class="history-list">
+      {% for h in history %}
+      <a href="/search?q={{ h.query | urlencode }}" class="history-item">
+        <span class="history-icon">🔍</span>
+        <span class="history-query">{{ h.query }}</span>
+        <span class="history-meta">
+          {% if h.result_count %}{{ h.result_count }} results · {% endif %}
+          {{ h.searched_at[:10] if h.searched_at else '' }}
+        </span>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="no-results">
+      <p>No search history yet.</p>
+      <p><a href="/">Start searching</a></p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+document.getElementById('clear-history-btn')?.addEventListener('click', () => {
+  if (!confirm('Clear all search history?')) return;
+  fetch('/api/history/clear', {method: 'POST'})
+    .then(() => location.reload());
+});
+</script>
+{% endblock %}

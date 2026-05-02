@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}{{ collection.name }} — SearchX{% endblock %}
+{% block body %}
+<div class="manager-wrap">
+  <header class="results-header">
+    <a href="/" class="logo-small">Search<span>X</span></a>
+    <div style="flex:1">
+      <a href="/collections" class="viewer-back">← Collections</a>
+      <h1 class="manager-title" style="margin-top:.2rem">{{ collection.name }}</h1>
+      {% if collection.description %}
+        <p class="muted" style="font-size:.85rem">{{ collection.description }}</p>
+      {% endif %}
+    </div>
+    <form method="post" action="/collection/{{ collection.id }}/delete"
+          onsubmit="return confirm('Delete this collection?')">
+      <button class="danger-btn" style="font-size:.8rem;padding:.35rem .8rem">Delete Collection</button>
+    </form>
+    <nav class="top-nav">
+      <a href="/collections" class="nav-link">Collections</a>
+    </nav>
+  </header>
+
+  <div class="manager-body">
+    {% if items %}
+    <p class="muted" style="margin-bottom:1rem">{{ items | length }} saved item{% if items | length != 1 %}s{% endif %}</p>
+    <div class="results-list" style="max-width:800px">
+      {% for r in items %}
+      <article class="result-card media-{{ r.media_type }}">
+        <div class="result-meta">
+          <span class="badge badge-{{ r.media_type }}">{{ r.media_type }}</span>
+          {% if r.filetype %}<span class="badge badge-ext">.{{ r.filetype }}</span>{% endif %}
+          {% if r.media_type in ['video', 'audio', 'image'] %}
+            <a href="/view/{{ r.id }}" class="preview-btn preview-{{ r.media_type }}">
+              {% if r.media_type == 'video' %}▶ Play{% elif r.media_type == 'audio' %}♫ Play{% else %}🔍 View{% endif %}
+            </a>
+          {% endif %}
+          <button class="src-btn btn-delete" style="margin-left:auto;font-size:.75rem"
+                  onclick="removeItem({{ r.id }}, this)">✕ Remove</button>
+        </div>
+        <h2 class="result-title">
+          {% if r.source == 'local' and r.file_path %}
+            <a href="/open?path={{ r.file_path | urlencode }}" title="{{ r.file_path }}">{{ r.title or r.file_path }}</a>
+          {% else %}
+            <a href="{{ r.url }}" target="_blank" rel="noopener">{{ r.title or r.url }}</a>
+          {% endif %}
+        </h2>
+        <div class="result-url">{{ r.url[:80] }}{% if r.url | length > 80 %}…{% endif %}</div>
+        {% if r.file_size %}
+          <span class="filesize">{{ (r.file_size / 1024 / 1024) | round(1) }} MB</span>
+        {% endif %}
+        {% if r.metadata.duration_sec %}
+          <span class="duration">⏱ {{ r.metadata.duration_sec // 60 }}:{{ '%02d' % (r.metadata.duration_sec % 60) }}</span>
+        {% endif %}
+      </article>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="no-results">
+      <p>This collection is empty.</p>
+      <p>Save results from <a href="/">search</a> using the bookmark button.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+function removeItem(docId, btn) {
+  fetch('/api/collection/{{ collection.id }}/remove', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({doc_id: docId})
+  }).then(() => btn.closest('.result-card').remove());
+}
+</script>
+{% endblock %}

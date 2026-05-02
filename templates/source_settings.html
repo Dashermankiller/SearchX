@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}{{ src.label }} — Source Settings — SearchX{% endblock %}
+{% block body %}
+<div class="manager-wrap">
+  <header class="results-header">
+    <a href="/" class="logo-small">Search<span>X</span></a>
+    <h1 class="manager-title">Source Settings</h1>
+    <nav class="top-nav">
+      <a href="/index-manager" class="nav-link">← Index Manager</a>
+    </nav>
+  </header>
+
+  <div class="manager-body">
+
+    {% if saved %}
+    <div class="alert-success">✓ Settings saved.</div>
+    {% endif %}
+
+    <div class="source-detail-header">
+      <span class="source-type-badge type-{{ src.type }}">{{ src.type }}</span>
+      <span class="source-path-full">{{ src.path }}</span>
+    </div>
+
+    <form class="index-form" method="post">
+      <h2>General</h2>
+
+      <div class="form-section">
+        <label>Label <span class="hint">(display name)</span></label>
+        <input type="text" name="label" value="{{ src.label or src.path }}"
+               style="width:100%; background:var(--bg3); border:1px solid var(--border); border-radius:8px; color:var(--text); padding:.6rem .9rem; font-size:.9rem; outline:none;">
+      </div>
+
+      {% if src.type == 'web' %}
+      <h2 style="margin-top:1.5rem">Crawl Settings</h2>
+      <div class="form-row">
+        <div class="form-field">
+          <label>Crawl depth</label>
+          <input type="number" name="depth" value="{{ src.settings.get('depth', 2) }}" min="0" max="5">
+        </div>
+        <div class="form-field">
+          <label>Max pages</label>
+          <input type="number" name="max_pages" value="{{ src.settings.get('max_pages', 200) }}" min="1" max="5000">
+        </div>
+        <div class="form-field">
+          <label>Delay (sec)</label>
+          <input type="number" name="delay" value="{{ src.settings.get('delay', 0.3) }}" min="0" max="5" step="0.1">
+        </div>
+        <div class="form-field checkbox-field">
+          <label>
+            <input type="checkbox" name="same_domain" {% if src.settings.get('same_domain', True) %}checked{% endif %}>
+            Same domain only
+          </label>
+        </div>
+      </div>
+
+      {% else %}
+      <h2 style="margin-top:1.5rem">File Filter</h2>
+      <div class="form-section">
+        <label>Allowed extensions <span class="hint">(leave blank for all supported types — one per line or comma-separated)</span></label>
+        <textarea name="extensions" rows="6" spellcheck="false"
+          placeholder="mp4&#10;mp3&#10;jpg&#10;pdf">{{ src.settings.get('extensions', []) | join('\n') }}</textarea>
+      </div>
+      {% endif %}
+
+      <div class="settings-actions" style="margin-top:1rem">
+        <button type="submit" class="index-btn">Save</button>
+        <a href="/index-manager" class="reset-link">Cancel</a>
+      </div>
+    </form>
+
+    <!-- Source stats -->
+    <div class="rule-summary" style="margin-top:1.5rem">
+      <h3>Stats</h3>
+      <div class="rule-list" style="list-style:none; padding:0; display:flex; flex-wrap:wrap; gap:.75rem;">
+        <span class="src-stat-big">{{ src.doc_count }} documents</span>
+        {% if src.last_indexed %}
+          <span class="src-stat-big">Last indexed: {{ src.last_indexed[:19].replace('T',' ') }} UTC</span>
+        {% endif %}
+        <span class="src-stat-big">Status: {% if src.enabled %}enabled{% else %}disabled{% endif %}</span>
+      </div>
+    </div>
+
+    <!-- Danger zone -->
+    <div class="danger-zone">
+      <h3>Danger Zone</h3>
+      <div class="danger-row">
+        <div>
+          <strong>Remove this source</strong>
+          <p>Deletes all {{ src.doc_count }} indexed documents from this source permanently.</p>
+        </div>
+        <form method="post" action="/source/{{ src.id }}/delete"
+              onsubmit="return confirm('Remove {{ src.path }} and all {{ src.doc_count }} documents?')">
+          <button class="danger-btn">Remove Source</button>
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

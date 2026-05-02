@@ -1,0 +1,53 @@
+# systemd service — auto-starts SearchX on boot and restarts on crash
+#
+# SETUP (one-time):
+#   1. Edit WorkingDirectory and ExecStart paths below to match your install.
+#   2. sudo cp searchx.service /etc/systemd/system/
+#   3. sudo systemctl daemon-reload
+#   4. sudo systemctl enable --now searchx
+#
+# CONTROL:
+#   sudo systemctl start   searchx
+#   sudo systemctl stop    searchx
+#   sudo systemctl restart searchx
+#   sudo systemctl status  searchx
+#   journalctl -u searchx -f        ← live logs
+
+[Unit]
+Description=SearchX — Local & Web Search Engine
+After=network.target
+Wants=network.target
+
+[Service]
+Type=notify
+NotifyAccess=all
+
+# ── Change these two lines to match your setup ────────────────────────────
+User=dasher
+WorkingDirectory=/home/dasher/PycharmProjects/PythonProject/search_engine
+# ── If using a virtualenv, point ExecStart at its gunicorn binary:
+# ExecStart=/path/to/venv/bin/gunicorn wsgi:app --config gunicorn.conf.py
+ExecStart=gunicorn wsgi:app --config gunicorn.conf.py
+
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+KillSignal=SIGQUIT
+TimeoutStopSec=10
+
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+# ── Hardening ─────────────────────────────────────────────────────────────
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/home/dasher/PycharmProjects/PythonProject/search_engine
+
+# ── Environment ───────────────────────────────────────────────────────────
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+
+[Install]
+WantedBy=multi-user.target

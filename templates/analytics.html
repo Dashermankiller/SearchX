@@ -1,0 +1,152 @@
+{% extends "settings_layout.html" %}
+{% block settings_title %}Search Analytics — SearchX{% endblock %}
+{% block settings_body %}
+
+<div class="manager-body" style="padding:0">
+  <h2 class="section-title">Search Analytics</h2>
+  <p class="settings-desc">Usage data from all search history.</p>
+
+  <!-- Stat cards -->
+  <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem">
+    {% for label, value in [
+      ('Total Searches', data.total),
+      ('Unique Queries', data.unique),
+      ('Zero-Result Queries', data.zero_results|length),
+    ] %}
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.5rem;flex:1;min-width:140px;text-align:center">
+      <div style="font-size:1.8rem;font-weight:700;color:var(--accent)">{{ value }}</div>
+      <div style="font-size:.8rem;color:var(--muted);margin-top:.25rem">{{ label }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Charts row -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin-bottom:1.5rem">
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem">
+      <p style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:.75rem">Searches per day (last 30 days)</p>
+      <canvas id="dailyChart" height="160"></canvas>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem">
+      <p style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:.75rem">Searches by hour of day</p>
+      <canvas id="hourlyChart" height="160"></canvas>
+    </div>
+  </div>
+
+  <!-- Tables row -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin-bottom:1.5rem">
+
+    <!-- Top queries -->
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem">
+      <p style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:.75rem">Top queries</p>
+      <table style="width:100%;border-collapse:collapse;font-size:.85rem">
+        <thead>
+          <tr style="color:var(--muted)">
+            <th style="text-align:left;padding:.3rem .5rem;border-bottom:1px solid var(--border)">#</th>
+            <th style="text-align:left;padding:.3rem .5rem;border-bottom:1px solid var(--border)">Query</th>
+            <th style="text-align:right;padding:.3rem .5rem;border-bottom:1px solid var(--border)">Searches</th>
+            <th style="text-align:right;padding:.3rem .5rem;border-bottom:1px solid var(--border)">Avg results</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for i, q in enumerate(data.top_queries) %}
+          <tr>
+            <td style="padding:.3rem .5rem;color:var(--muted)">{{ i+1 }}</td>
+            <td style="padding:.3rem .5rem">
+              <a href="/search?q={{ q.query | urlencode }}" style="color:var(--accent)">{{ q.query }}</a>
+            </td>
+            <td style="padding:.3rem .5rem;text-align:right">{{ q.cnt }}</td>
+            <td style="padding:.3rem .5rem;text-align:right;color:var(--muted)">{{ q.avg_results }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Zero-result queries -->
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem">
+      <p style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:.75rem">Zero-result queries <span style="color:#f87171">(nothing found)</span></p>
+      {% if data.zero_results %}
+      <table style="width:100%;border-collapse:collapse;font-size:.85rem">
+        <thead>
+          <tr style="color:var(--muted)">
+            <th style="text-align:left;padding:.3rem .5rem;border-bottom:1px solid var(--border)">Query</th>
+            <th style="text-align:right;padding:.3rem .5rem;border-bottom:1px solid var(--border)">Times</th>
+            <th style="text-align:right;padding:.3rem .5rem;border-bottom:1px solid var(--border)">Last seen</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for q in data.zero_results %}
+          <tr>
+            <td style="padding:.3rem .5rem">
+              <a href="/search?q={{ q.query | urlencode }}" style="color:#f87171">{{ q.query }}</a>
+            </td>
+            <td style="padding:.3rem .5rem;text-align:right">{{ q.cnt }}</td>
+            <td style="padding:.3rem .5rem;text-align:right;color:var(--muted);font-size:.78rem">
+              {{ q.last_seen[:10] if q.last_seen else '' }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="muted" style="font-size:.85rem">No zero-result queries yet.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Top users -->
+  {% if data.top_users %}
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem;margin-bottom:1.5rem">
+    <p style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:.75rem">Top users</p>
+    <div style="display:flex;gap:.75rem;flex-wrap:wrap">
+      {% for u in data.top_users %}
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:.4rem .8rem;font-size:.85rem">
+        <strong>{{ u.username }}</strong> <span style="color:var(--muted)">{{ u.cnt }} searches</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+const ACCENT   = '#4f8ef7';
+const MUTED    = '#6b7280';
+const GRID_CLR = 'rgba(255,255,255,0.06)';
+Chart.defaults.color = MUTED;
+
+const dailyData  = {{ data.daily  | tojson }};
+const hourlyData = {{ data.hourly | tojson }};
+
+// Fill missing days
+const allDays = [];
+const dayCounts = Object.fromEntries(dailyData.map(d => [d.day, d.cnt]));
+for (let i = 29; i >= 0; i--) {
+  const d = new Date(); d.setDate(d.getDate() - i);
+  const key = d.toISOString().slice(0, 10);
+  allDays.push({day: key.slice(5), cnt: dayCounts[key] || 0});
+}
+
+new Chart(document.getElementById('dailyChart'), {
+  type: 'bar',
+  data: {
+    labels: allDays.map(d => d.day),
+    datasets: [{data: allDays.map(d => d.cnt), backgroundColor: ACCENT, borderRadius: 3}]
+  },
+  options: {plugins:{legend:{display:false}}, scales:{x:{grid:{color:GRID_CLR}}, y:{grid:{color:GRID_CLR}, beginAtZero:true, ticks:{stepSize:1}}}}
+});
+
+// Fill missing hours
+const hourMap = Object.fromEntries(hourlyData.map(h => [h.hour, h.cnt]));
+const hours = Array.from({length:24}, (_, i) => ({h: i, cnt: hourMap[i] || 0}));
+new Chart(document.getElementById('hourlyChart'), {
+  type: 'bar',
+  data: {
+    labels: hours.map(h => `${h.h}:00`),
+    datasets: [{data: hours.map(h => h.cnt), backgroundColor: '#7c3aed', borderRadius: 3}]
+  },
+  options: {plugins:{legend:{display:false}}, scales:{x:{grid:{color:GRID_CLR}}, y:{grid:{color:GRID_CLR}, beginAtZero:true, ticks:{stepSize:1}}}}
+});
+</script>
+{% endblock %}

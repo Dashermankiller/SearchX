@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Sign in — SearchX{% endblock %}
+{% block body %}
+<div class="auth-wrap">
+
+  <div class="auth-card">
+    <a href="/" class="auth-logo">Search<span>X</span></a>
+    <h1 class="auth-title">Sign in</h1>
+
+    {% if error %}
+    <div class="auth-error">{{ error }}</div>
+    {% endif %}
+
+    <form class="auth-form" method="post" action="/login">
+      {% if next %}
+      <input type="hidden" name="next" value="{{ next }}">
+      {% endif %}
+
+      <div class="auth-field">
+        <label for="username">Username</label>
+        <input id="username" name="username" type="text"
+               autocomplete="username" autofocus required
+               value="{{ username or '' }}">
+      </div>
+
+      <div class="auth-field">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password"
+               autocomplete="current-password" required>
+      </div>
+
+      <button type="submit" class="auth-btn">Sign in</button>
+    </form>
+
+    <p class="auth-switch">
+      Don't have an account? <a href="/register">Register</a>
+    </p>
+  </div>
+
+</div>
+{% endblock %}

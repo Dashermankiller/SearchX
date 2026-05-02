@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ doc.title }} — SearchX Offline Copy</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0f0f0f; color: #e8e8e8;
+      font-family: system-ui, sans-serif; line-height: 1.6;
+    }
+    a { color: #4f8ef7; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── Banner ── */
+    .banner {
+      position: sticky; top: 0; z-index: 100;
+      background: #1a1a1a; border-bottom: 2px solid #4f8ef7;
+      padding: .65rem 1.5rem;
+    }
+    .banner-top {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 1rem; flex-wrap: wrap; margin-bottom: .3rem;
+    }
+    .banner-left  { display: flex; align-items: center; gap: .9rem; }
+    .banner-right { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+    .logo { font-size: 1.1rem; font-weight: 800; }
+    .logo span { color: #4f8ef7; }
+    .badge {
+      background: #4f8ef7; color: #fff; border-radius: 4px;
+      padding: .15rem .5rem; font-size: .72rem; font-weight: 700;
+      letter-spacing: .04em; text-transform: uppercase;
+    }
+    .badge-offline { background: #f97316; }
+    .meta { display: flex; flex-direction: column; gap: .05rem; }
+    .meta-label { font-size: .7rem; color: #4f8ef7; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+    .meta-date  { font-size: .75rem; color: #888; }
+    .btn-live {
+      background: #4f8ef7; color: #fff; border-radius: 6px;
+      padding: .3rem .85rem; font-size: .8rem; font-weight: 600; white-space: nowrap;
+    }
+    .banner-url { font-size: .74rem; color: #888; }
+    .banner-url a { color: #888; word-break: break-all; }
+    .banner-url a:hover { color: #4f8ef7; }
+
+    /* ── Layout ── */
+    .page { max-width: 900px; margin: 2rem auto; padding: 0 1.5rem 4rem; }
+
+    .page-title {
+      font-size: 1.7rem; font-weight: 700; line-height: 1.25;
+      margin-bottom: .65rem;
+    }
+    .page-desc {
+      color: #888; font-size: .95rem; font-style: italic; margin-bottom: 1rem;
+    }
+    hr { border: none; border-top: 1px solid #333; margin: 1.2rem 0 1.5rem; }
+
+    /* ── Videos ── */
+    .videos { display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.5rem; }
+    .video-wrap {
+      background: #000; border-radius: 10px; overflow: hidden;
+      border: 1px solid #333;
+    }
+    .video-wrap video { width: 100%; max-height: 480px; display: block; }
+    .video-note {
+      font-size: .75rem; color: #888; padding: .4rem .8rem;
+      background: #1a1a1a; text-align: center;
+    }
+
+    /* ── Image grid ── */
+    .image-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: .5rem; margin-bottom: 1.5rem;
+    }
+    .image-grid a {
+      display: block; border-radius: 8px; overflow: hidden;
+      background: #1a1a1a; border: 1px solid #333; aspect-ratio: 16/9;
+    }
+    .image-grid img {
+      width: 100%; height: 100%; object-fit: cover;
+    }
+
+    /* ── Article text ── */
+    .content { font-size: 1rem; line-height: 1.8; color: #e8e8e8; }
+    .content p { margin-bottom: 1rem; }
+
+    /* ── Footer ── */
+    .footer {
+      margin-top: 3rem; padding-top: 1rem;
+      border-top: 1px solid #333; font-size: .78rem; color: #555;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Banner -->
+<div class="banner">
+  <div class="banner-top">
+    <div class="banner-left">
+      <span class="logo">Search<span>X</span></span>
+      <span class="badge badge-offline">Offline Copy</span>
+      <div class="meta">
+        <span class="meta-label">Cached</span>
+        <span class="meta-date">{{ doc.indexed_at | replace('T',' ') | truncate(19,True,'') }} UTC</span>
+      </div>
+    </div>
+    <div class="banner-right">
+      <a href="{{ doc.url }}" target="_blank" rel="noopener" class="btn-live">
+        Visit live site ↗
+      </a>
+    </div>
+  </div>
+  <div class="banner-url">
+    Original: <a href="{{ doc.url }}" target="_blank" rel="noopener">{{ doc.url }}</a>
+  </div>
+</div>
+
+<!-- Content -->
+<div class="page">
+
+  <h1 class="page-title">{{ doc.title }}</h1>
+
+  {% if doc.metadata.description %}
+  <p class="page-desc">{{ doc.metadata.description }}</p>
+  {% endif %}
+
+  <hr>
+
+  <!-- Videos (linked, not embedded — too large to embed) -->
+  {% if doc.metadata.videos %}
+  <div class="videos">
+    {% for v in doc.metadata.videos %}
+    <div class="video-wrap">
+      <video controls preload="metadata"
+             {% if v.poster %}poster="{{ v.poster }}"{% endif %}>
+        <source src="{{ v.src }}" {% if v.type %}type="{{ v.type }}"{% endif %}>
+      </video>
+      <div class="video-note">⚠ Video streams from original server — requires internet</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Images (base64 embedded — work offline) -->
+  {% if embedded_images %}
+  <div class="image-grid">
+    {% for img in embedded_images %}
+    <a href="{{ img.src }}" target="_blank" rel="noopener">
+      <img src="{{ img.src }}"
+           alt="{{ img.alt or '' }}"
+           onerror="this.parentElement.style.display='none'">
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Article text -->
+  <div class="content">
+    {% for para in doc.content.split('\n\n') %}
+      {% set p = para.strip() %}
+      {% if p %}<p>{{ p }}</p>{% endif %}
+    {% endfor %}
+    {% if not doc.content %}
+      <p style="color:#888">No content was captured for this page.</p>
+    {% endif %}
+  </div>
+
+  <div class="footer">
+    Saved by SearchX on {{ doc.indexed_at | replace('T',' ') | truncate(19,True,'') }} UTC &nbsp;·&nbsp;
+    Source: <a href="{{ doc.url }}" target="_blank" rel="noopener">{{ doc.url }}</a> &nbsp;·&nbsp;
+    Domain: {{ doc.metadata.domain or '' }} &nbsp;·&nbsp;
+    Images are embedded (offline‑ready) · Videos require internet
+  </div>
+
+</div>
+</body>
+</html>

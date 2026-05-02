@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Register — SearchX{% endblock %}
+{% block body %}
+<div class="auth-wrap">
+
+  <div class="auth-card">
+    <a href="/" class="auth-logo">Search<span>X</span></a>
+    <h1 class="auth-title">Create account</h1>
+
+    {% if error %}
+    <div class="auth-error">{{ error }}</div>
+    {% endif %}
+
+    <form class="auth-form" method="post" action="/register">
+
+      <div class="auth-field">
+        <label for="username">Username</label>
+        <input id="username" name="username" type="text"
+               autocomplete="username" autofocus required
+               minlength="3" maxlength="32"
+               value="{{ username or '' }}">
+        <span class="auth-hint">3–32 characters, letters and numbers only.</span>
+      </div>
+
+      <div class="auth-field">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password"
+               autocomplete="new-password" required minlength="6">
+        <span class="auth-hint">Minimum 6 characters.</span>
+      </div>
+
+      <div class="auth-field">
+        <label for="password2">Confirm password</label>
+        <input id="password2" name="password2" type="password"
+               autocomplete="new-password" required minlength="6">
+      </div>
+
+      <button type="submit" class="auth-btn">Create account</button>
+    </form>
+
+    <p class="auth-switch">
+      Already have an account? <a href="/login">Sign in</a>
+    </p>
+  </div>
+
+</div>
+{% endblock %}

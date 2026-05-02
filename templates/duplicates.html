@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Duplicate Files — SearchX{% endblock %}
+{% block body %}
+<div class="manager-wrap">
+  <header class="results-header">
+    <a href="/" class="logo-small">Search<span>X</span></a>
+    <h1 class="manager-title">Duplicate Files</h1>
+    <nav class="top-nav">
+      <a href="/index-manager" class="nav-link">Index</a>
+      <a href="/settings" class="nav-link">Settings</a>
+    </nav>
+  </header>
+
+  <div class="manager-body">
+    {% if groups %}
+    <p class="muted" style="margin-bottom:1.5rem">
+      Found {{ groups | length }} group{% if groups | length != 1 %}s{% endif %} of duplicate files
+      (matched by content hash).
+    </p>
+
+    {% for group in groups %}
+    <div class="dup-group">
+      <div class="dup-group-header">
+        <span class="badge badge-{{ group[0].media_type }}">{{ group[0].media_type }}</span>
+        <span class="dup-count">{{ group | length }} copies</span>
+        {% if group[0].file_size %}
+          <span class="filesize">{{ (group[0].file_size / 1024 / 1024) | round(1) }} MB each</span>
+        {% endif %}
+      </div>
+      <div class="dup-items">
+        {% for doc in group %}
+        <div class="dup-item">
+          {% if doc.media_type in ['video', 'audio', 'image'] %}
+            <a href="/view/{{ doc.id }}" class="preview-btn preview-{{ doc.media_type }}" style="margin-right:.5rem">
+              {% if doc.media_type == 'video' %}▶{% elif doc.media_type == 'audio' %}♫{% else %}🔍{% endif %}
+            </a>
+          {% endif %}
+          <div class="dup-item-info">
+            <span class="dup-item-title">
+              {% if doc.source == 'local' and doc.file_path %}
+                <a href="/open?path={{ doc.file_path | urlencode }}" title="{{ doc.file_path }}">{{ doc.title or doc.file_path }}</a>
+              {% else %}
+                <a href="{{ doc.url }}" target="_blank" rel="noopener">{{ doc.title or doc.url }}</a>
+              {% endif %}
+            </span>
+            <span class="dup-item-path muted">{{ doc.file_path or doc.url }}</span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+
+    {% else %}
+    <div class="no-results">
+      <p>No duplicate files found.</p>
+      <p class="muted" style="margin-top:.5rem;font-size:.85rem">
+        Duplicates are detected by content hash during indexing.
+        Re-index your local sources to scan for duplicates.
+      </p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

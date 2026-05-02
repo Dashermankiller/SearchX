@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block title %}{{ doc.title or 'Media Viewer' }} — SearchX{% endblock %}
+{% block body %}
+
+<!-- Plyr CSS -->
+<link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css">
+
+<div class="viewer-wrap">
+  <header class="viewer-header">
+    <a href="javascript:history.back()" class="viewer-back">← Back</a>
+    <div class="viewer-title-wrap">
+      <span class="badge badge-{{ doc.media_type }}">{{ doc.media_type }}</span>
+      <h1 class="viewer-title">{{ doc.title or doc.file_path or doc.url }}</h1>
+    </div>
+    {% if doc.source == 'local' and doc.file_path %}
+      <a href="/open?path={{ doc.file_path | urlencode }}" class="viewer-open-btn" title="Open with system app">⬡ Open</a>
+    {% endif %}
+  </header>
+
+  <main class="viewer-main">
+
+    {# ── VIDEO ── #}
+    {% if doc.media_type == 'video' %}
+      <div class="player-container">
+        {% if doc.source == 'local' and doc.file_path %}
+          <video id="player" playsinline controls>
+            <source src="/stream?path={{ doc.file_path | urlencode }}" type="video/{{ doc.filetype }}">
+            Your browser does not support this video format.
+          </video>
+        {% else %}
+          <div class="web-video-notice">
+            <p>This video is hosted on an external site.</p>
+            <a href="{{ doc.url }}" target="_blank" rel="noopener" class="index-btn">Open in browser →</a>
+          </div>
+        {% endif %}
+      </div>
+
+    {# ── AUDIO ── #}
+    {% elif doc.media_type == 'audio' %}
+      <div class="player-container audio-container">
+        <div class="audio-art">
+          <div class="audio-icon">♫</div>
+          {% if doc.metadata.get('artist') %}<p class="audio-artist">{{ doc.metadata.artist }}</p>{% endif %}
+          {% if doc.metadata.get('album') %}<p class="audio-album">{{ doc.metadata.album }}</p>{% endif %}
+        </div>
+        {% if doc.source == 'local' and doc.file_path %}
+          <audio id="player" controls>
+            <source src="/stream?path={{ doc.file_path | urlencode }}" type="audio/{{ doc.filetype }}">
+          </audio>
+        {% else %}
+          <a href="{{ doc.url }}" target="_blank" class="index-btn">Open audio →</a>
+        {% endif %}
+      </div>
+
+    {# ── IMAGE ── #}
+    {% elif doc.media_type == 'image' %}
+      <div class="image-viewer" id="image-viewer">
+        {% if doc.source == 'local' and doc.file_path %}
+          <img id="viewer-img"
+               src="/stream?path={{ doc.file_path | urlencode }}"
+               alt="{{ doc.title }}"
+               draggable="false">
+        {% else %}
+          <img id="viewer-img" src="{{ doc.url }}" alt="{{ doc.title }}" draggable="false">
+        {% endif %}
+        <div class="image-controls">
+          <button onclick="zoom(1.25)" class="img-ctrl-btn">＋ Zoom in</button>
+          <button onclick="zoom(0.8)"  class="img-ctrl-btn">－ Zoom out</button>
+          <button onclick="resetZoom()" class="img-ctrl-btn">⟳ Reset</button>
+          {% if doc.metadata.width %}
+            <span class="img-dim-info">{{ doc.metadata.width }}×{{ doc.metadata.height }}px</span>
+          {% endif %}
+        </div>
+      </div>
+
+    {# ── DOCUMENT / WEB ── #}
+    {% else %}
+      <div class="doc-viewer">
+        {% if doc.source == 'local' and doc.file_path and doc.filetype == 'pdf' %}
+          <iframe src="/stream?path={{ doc.file_path | urlencode }}"
+                  class="pdf-frame" title="{{ doc.title }}"></iframe>
+        {% elif doc.source == 'web' %}
+          <div class="web-notice">
+            <p>Web page — open in browser to view.</p>
+            <a href="{{ doc.url }}" target="_blank" class="index-btn">Open page →</a>
+          </div>
+        {% else %}
+          <div class="text-preview">
+            <pre>{{ doc.content[:3000] if doc.content else 'No preview available.' }}</pre>
+          </div>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    {# ── Metadata panel ── #}
+    <aside class="viewer-meta">
+      <h3>Details</h3>
+
+      {% if doc.file_path %}
+        <div class="meta-row"><span class="meta-key">Path</span><span class="meta-val small">{{ doc.file_path }}</span></div>
+      {% else %}
+        <div class="meta-row"><span class="meta-key">URL</span>
+          <a href="{{ doc.url }}" target="_blank" class="meta-val small">{{ doc.url[:60] }}…</a>
+        </div>
+      {% endif %}
+
+      {% if doc.file_size %}
+        <div class="meta-row">
+          <span class="meta-key">Size</span>
+          <span class="meta-val">{{ (doc.file_size / 1024 / 1024) | round(2) }} MB</span>
+        </div>
+      {% endif %}
+
+      {% if doc.filetype %}
+        <div class="meta-row"><span class="meta-key">Format</span><span class="meta-val">.{{ doc.filetype }}</span></div>
+      {% endif %}
+
+      {% if doc.indexed_at %}
+        <div class="meta-row"><span class="meta-key">Indexed</span><span class="meta-val">{{ doc.indexed_at[:10] }}</span></div>
+      {% endif %}
+
+      {% for k, v in doc.metadata.items() %}
+        {% if v and k not in ['og_image', 'description'] %}
+          <div class="meta-row">
+            <span class="meta-key">{{ k | replace('_', ' ') | title }}</span>
+            <span class="meta-val">{{ v }}</span>
+          </div>
+        {% endif %}
+      {% endfor %}
+    </aside>
+  </main>
+</div>
+
+<!-- Plyr JS -->
+<script src="https://cdn.plyr.io/3.7.8/plyr.min.js"></script>
+<script>
+  // Init Plyr on video/audio
+  const el = document.getElementById('player');
+  if (el) {
+    const player = new Plyr(el, {
+      controls: [
+        'play-large', 'rewind', 'play', 'fast-forward', 'progress',
+        'current-time', 'duration', 'mute', 'volume', 'captions',
+        'settings', 'fullscreen'
+      ],
+      settings: ['quality', 'speed'],
+      speed: { selected: 1, options: [0.5, 0.75, 1, 1.25, 1.5, 2] },
+      keyboard: { focused: true, global: true },
+    });
+  }
+
+  // Image zoom
+  let _scale = 1;
+  function zoom(factor) {
+    _scale = Math.min(Math.max(_scale * factor, 0.2), 8);
+    applyZoom();
+  }
+  function resetZoom() { _scale = 1; applyZoom(); }
+  function applyZoom() {
+    const img = document.getElementById('viewer-img');
+    if (img) img.style.transform = `scale(${_scale})`;
+  }
+
+  // Scroll-to-zoom on image
+  const viewer = document.getElementById('image-viewer');
+  if (viewer) {
+    viewer.addEventListener('wheel', e => {
+      e.preventDefault();
+      zoom(e.deltaY < 0 ? 1.1 : 0.9);
+    }, { passive: false });
+  }
+</script>
+{% endblock %}

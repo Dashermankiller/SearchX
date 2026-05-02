@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+venv/
+env/
+.env
+.venv/
+
+# Secrets / config with credentials
+config.json
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+*.db.backup*
+backups/
+
+# Compiled Rust extension
+simhash_rs/*.so
+simhash_rs/target/
+simhash_rs/Cargo.lock
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Misc
+1/

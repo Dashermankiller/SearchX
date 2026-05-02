@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}{% block settings_title %}Settings{% endblock %} — SearchX{% endblock %}
+{% block body %}
+
+<div class="sl-wrap">
+
+  <!-- ── Top bar ──────────────────────────────────────────────────────────── -->
+  <header class="sl-topbar">
+    <a href="/" class="logo-small">Search<span>X</span></a>
+    <span class="sl-topbar-title">Settings</span>
+    <div class="sl-topbar-user">
+      {% if current_user %}
+        <span class="sl-username">{{ current_user.username }}</span>
+        <span class="sl-role-badge sl-role-{{ current_user.role }}">{{ current_user.role }}</span>
+        <a href="/logout" class="sl-logout-btn">Sign out</a>
+      {% endif %}
+    </div>
+  </header>
+
+  <div class="sl-body">
+
+    <!-- ── Sidebar nav ──────────────────────────────────────────────────────── -->
+    <nav class="sl-sidebar">
+
+      <div class="sl-nav-group">
+        <span class="sl-nav-group-label">Account</span>
+        <a href="/account" class="sl-nav-link {% if active_page == 'account' %}sl-nav-active{% endif %}">
+          <span class="sl-nav-icon">👤</span> Profile
+        </a>
+        <a href="/account/history" class="sl-nav-link {% if active_page == 'history' %}sl-nav-active{% endif %}">
+          <span class="sl-nav-icon">🕘</span> Search history
+        </a>
+      </div>
+
+      {% if current_user and current_user.role == 'admin' %}
+      <div class="sl-nav-group">
+        <span class="sl-nav-group-label">Admin</span>
+        <a href="/settings" class="sl-nav-link {% if active_page == 'settings' %}sl-nav-active{% endif %}">
+          <span class="sl-nav-icon">⚙</span> General settings
+        </a>
+        <a href="/admin" class="sl-nav-link {% if active_page == 'admin' %}sl-nav-active{% endif %}">
+          <span class="sl-nav-icon">🖥</span> System admin
+        </a>
+        <a href="/admin/users" class="sl-nav-link {% if active_page == 'users' %}sl-nav-active{% endif %}">
+          <span class="sl-nav-icon">👥</span> Users
+        </a>
+        <a href="/crawler" class="sl-nav-link {% if active_page == 'crawler' %}sl-nav-active{% endif %}">
+          <span class="sl-nav-icon">🕷</span> Crawler
+        </a>
+        <a href="/analytics" class="sl-nav-link {% if active_page == 'analytics' %}sl-nav-active{% endif %}">
+          <span class="sl-nav-icon">📊</span> Analytics
+        </a>
+      </div>
+      {% endif %}
+
+    </nav>
+
+    <!-- ── Main content ──────────────────────────────────────────────────────── -->
+    <main class="sl-main">
+      {% block settings_body %}{% endblock %}
+    </main>
+
+  </div>
+</div>
+
+{% endblock %}
