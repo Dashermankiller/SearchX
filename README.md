@@ -6,7 +6,9 @@ A self-hosted search engine built with Python and Flask. Index your local files 
 
 - **Full-text search** across local files and crawled websites
 - **Semantic / vector search** — reranks results using sentence embeddings (`all-MiniLM-L6-v2`)
-- **AI answer box** — streaming answers powered by Ollama, OpenAI, Anthropic, or Gemini
+- **Personalized results** — boosts pages you've clicked before using per-user click history
+- **Proxy search** — routes searches through DuckDuckGo, Bing, or SearXNG; clicked results are automatically indexed locally and surfaced first on future searches
+- **AI answer box** — streaming answers powered by Ollama, OpenAI, Anthropic, or Gemini with hide/show toggle
 - **Text-to-speech** — read answers aloud via Edge TTS (free) or ElevenLabs
 - **Web crawler** — async crawler with configurable depth, page limits, and per-domain rate limiting
 - **Cloudflare bypass** — Playwright headless Chromium fallback for 403-protected sites
@@ -16,10 +18,11 @@ A self-hosted search engine built with Python and Flask. Index your local files 
 - **Collections** — group and save search results
 - **Search analytics** — dashboard with query trends, top searches, zero-result tracking
 - **Related searches** — trigram similarity suggestions
+- **PageRank** — link-graph based authority scoring via igraph
 - **Browser extension** — add any page to the index with one click
 - **User accounts** — registration, login, search history, per-user settings
 - **File viewer** — view PDFs, images, video, audio, and documents in-browser
-- **Admin panel** — manage users, sources, embeddings, and crawler jobs
+- **Admin panel** — manage users, sources, embeddings, crawler jobs, and proxy search settings
 
 ## Supported File Types
 
@@ -29,7 +32,7 @@ A self-hosted search engine built with Python and Flask. Index your local files 
 | Images | JPG, PNG, GIF, WEBP, BMP, TIFF, SVG (with OCR via Tesseract) |
 | Audio | MP3, WAV, FLAC, OGG, AAC, M4A (reads metadata) |
 | Video | MP4, MKV, AVI, MOV, WEBM, M4V (reads metadata) |
-| Web | HTML pages crawled or added via URL |
+| Web | HTML pages crawled, single-URL indexed, or added via proxy clicks |
 
 ## Requirements
 
@@ -44,8 +47,8 @@ A self-hosted search engine built with Python and Flask. Index your local files 
 **1. Clone and create a virtual environment**
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/searchx.git
-cd searchx
+git clone https://github.com/Dashermankiller/SearchX.git
+cd SearchX
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -67,13 +70,7 @@ python setup_db.py
 
 **4. Configure**
 
-Copy the default config and edit it:
-
-```bash
-cp config.py config.json  # or let the app create it on first run
-```
-
-Key settings in `config.json`:
+The app creates `config.json` automatically on first run with sensible defaults. Key settings:
 
 ```json
 {
@@ -81,7 +78,9 @@ Key settings in `config.json`:
   "ollama_url": "http://localhost:11434",
   "ollama_model": "qwen2.5:0.5b",
   "ai_answer_mode": "results",
-  "tts_provider": "edge"
+  "tts_provider": "edge",
+  "proxy_search_enabled": false,
+  "proxy_search_engine": "duckduckgo"
 }
 ```
 
@@ -93,6 +92,20 @@ python app.py
 
 Open [http://localhost:5000](http://localhost:5000) and register the first account (automatically becomes admin).
 
+## Proxy Search
+
+When enabled (toggle in `/admin`), every search queries an external engine in real time instead of the local database.
+
+| Engine | API key | Notes |
+|---|---|---|
+| DuckDuckGo | No | Default, no setup needed |
+| Bing | No | HTML scraping |
+| SearXNG | No | Requires your own instance URL |
+
+- Results per query: 5 / 10 / 20 / 30 / 50 / 100 (paginated automatically)
+- Clicking a result fetches and indexes the full page in the background
+- Once indexed, those pages are boosted to the top of future local searches
+
 ## AI Providers
 
 | Provider | Key required | Notes |
@@ -102,7 +115,7 @@ Open [http://localhost:5000](http://localhost:5000) and register the first accou
 | Anthropic | Yes | `anthropic_api_key` in config |
 | Gemini | Yes | `gemini_api_key` in config |
 
-Set `ai_answer_mode` to `"results"` to summarize indexed documents, or `"free"` to let the AI answer from its own knowledge.
+Set `ai_answer_mode` to `"results"` to summarize indexed documents, or `"free"` to use the AI's own knowledge.
 
 ## Browser Extension
 
@@ -128,7 +141,9 @@ For reverse proxy, see `nginx.conf`.
 - **Backend** — Flask, psycopg2, aiohttp, BeautifulSoup, Playwright
 - **Search** — PostgreSQL FTS (`tsvector`), pgvector (HNSW), `pg_trgm`
 - **Embeddings** — sentence-transformers (`all-MiniLM-L6-v2`)
+- **Ranking** — PageRank (igraph), click-based personalization, semantic reranking
 - **AI** — Ollama / OpenAI / Anthropic / Gemini (streaming SSE)
 - **TTS** — edge-tts (Microsoft neural voices), ElevenLabs
+- **Proxy search** — DuckDuckGo / Bing HTML scraping, SearXNG JSON API
 - **File parsing** — pdfplumber, python-docx, mutagen, Pillow, pytesseract, trafilatura
 - **Frontend** — Vanilla JS, Chart.js (analytics), no framework
